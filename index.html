@@ -1,3 +1,7 @@
+https://raw.githubusercontent.com/pavane174-boop/rizz-assist/main/index.html
+→ https://raw.githubusercontent.com/pavane174-boop/rizz-assist/main/index.html
+Content-Type: text/plain; charset=utf-8
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1000,7 +1004,9 @@ async function callAI(msgs, maxTokens) {
     resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: model, messages: msgs, max_completion_tokens: maxTokens, temperature: 0.75 })
+      body: JSON.stringify(Object.assign({ model: model, messages: msgs, temperature: 0.75 },
+        provider === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }
+      ))
     });
   } catch(e) {
     throw new Error('Network error — check your connection and API URL');
