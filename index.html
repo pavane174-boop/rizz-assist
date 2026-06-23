@@ -901,6 +901,7 @@ async function callAI(msgs, maxTokens) {
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) throw new Error('Add your API key in settings (gear icon)');
   const model = document.getElementById('modelName').value.trim() || PROVIDERS[provider]?.model || 'default';
+  console.log('[RizzAssist] callAI provider=' + provider + ' model=' + model + ' maxTokens=' + maxTokens);
 
   // Route to appropriate API format
   if (provider === 'claude') {
@@ -918,14 +919,31 @@ async function callAI(msgs, maxTokens) {
     url = PROVIDERS[provider].url;
   }
 
+  // OpenAI o-series models: no temperature, no system role, use max_completion_tokens
+  const isOModel = provider === 'openai' && /^o[0-9]/.test(model);
+  let apiMsgs = msgs;
+  if (isOModel) {
+    // Convert system messages to user messages for o-series
+    apiMsgs = msgs.map(m => m.role === 'system' ? { role: 'user', content: '[Instructions]: ' + m.content } : m);
+  }
+
+  const bodyObj = { model: model, messages: apiMsgs };
+  if (isOModel) {
+    bodyObj.max_completion_tokens = maxTokens;
+  } else if (provider === 'openai') {
+    bodyObj.max_completion_tokens = maxTokens;
+    bodyObj.temperature = 0.75;
+  } else {
+    bodyObj.max_tokens = maxTokens;
+    bodyObj.temperature = 0.75;
+  }
+
   let resp;
   try {
     resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify(Object.assign({ model: model, messages: msgs },
-        provider === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens, temperature: 0.75 }
-      ))
+      body: JSON.stringify(bodyObj)
     });
   } catch(e) {
     throw new Error('Network error — check your connection and API URL');
@@ -934,13 +952,17 @@ async function callAI(msgs, maxTokens) {
   if (!resp.ok) {
     let errMsg = 'API error ' + resp.status;
     try { const err = await resp.json(); if (err.error?.message) errMsg = err.error.message; } catch(e) {}
+    console.error('[RizzAssist] API error:', errMsg);
     throw new Error(errMsg);
   }
 
   let data;
   try { data = await resp.json(); } catch(e) { throw new Error('Invalid response from API'); }
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from API');
+  if (!content) {
+    console.error('[RizzAssist] Empty response, full data:', JSON.stringify(data).slice(0, 500));
+    throw new Error('Empty response from API');
+  }
   return content;
 }
 
