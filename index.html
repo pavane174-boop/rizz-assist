@@ -344,7 +344,7 @@ async function analyzeProfile() {
 
   try {
     const resp = await callAI([
-      { role: 'system', content: 'You are a dating psychology expert. Analyze the information about a person and create a structured psychological profile. Return ONLY valid JSON (no markdown, no backticks, no explanation). Use this exact structure:\n{"name":"string","summary":"1-2 sentence personality summary","traits":{"openness":0,"playfulness":0,"emotional_depth":0,"flirtiness":0,"directness":0,"humor_level":0},"communication_style":{"preferred_tone":"flirty|playful|warm|witty|chill|serious","message_length":"short|medium|long","emoji_usage":"heavy|moderate|minimal|none","response_pattern":"string","what_works":["string"],"what_to_avoid":["string"]},"interests":["string"],"key_facts":["string"],"attachment_style":"secure|anxious|avoidant|mixed","ideal_approach":"2-3 sentences"}\nAll trait values must be integers 0-10. Be accurate and insightful. Infer from details given.' },
+      { role: 'system', content: 'You are an elite dating strategist who understands female psychology deeply. Analyze this person and build a strategic profile. Return ONLY valid JSON (no markdown, no backticks).\n\nStructure:\n{"name":"string","summary":"2-3 sentence personality read — what drives her, what she craves emotionally, what kind of guy gets her attention","traits":{"openness":0,"playfulness":0,"emotional_depth":0,"flirtiness":0,"directness":0,"humor_level":0,"challenge_tolerance":0,"emotional_reactivity":0,"investment_tendency":0},"communication_style":{"preferred_tone":"flirty|playful|warm|witty|chill|serious","message_length":"short|medium|long","emoji_usage":"heavy|moderate|minimal|none","response_pattern":"string","what_works":["string"],"what_to_avoid":["string"]},"attraction_triggers":["things that make her feel special or drawn to someone"],"emotional_needs":["what she craves emotionally — validation, excitement, safety, intellectual stimulation, etc."],"conversation_hooks":["topics that get her most engaged and excited"],"interests":["string"],"key_facts":["string"],"attachment_style":"secure|anxious|avoidant|mixed","ideal_approach":"3-4 sentences — the exact texting strategy that would make her lean in. Include when to be bold vs pull back, how to create tension, and what makes her chase."}\n\nIMPORTANT:\n- challenge_tolerance (0-10): How much teasing/push-pull she enjoys. High = loves being challenged. Low = needs gentleness.\n- emotional_reactivity (0-10): How quickly her emotions shift. High = emotional spikes work well. Low = slow burn.\n- investment_tendency (0-10): How much effort she puts into conversations. High = invests a lot. Low = you need to draw her out.\n- attraction_triggers: Think deeply — does she want to feel chosen? Intellectually matched? Desired? Protected?\n- ideal_approach: This is STRATEGIC. Not just be nice. Think about what creates genuine desire.\n\nAll trait values must be integers 0-10. Be deeply insightful. Read between the lines.' },
       { role: 'user', content: 'Her name: ' + name + '\n\nDetails about her:\n' + details + (sampleMsgs ? '\n\nSample messages from her:\n' + sampleMsgs : '') }
     ], 800);
 
@@ -362,13 +362,16 @@ async function analyzeProfile() {
     profile.communication_style.response_pattern = profile.communication_style.response_pattern || '';
     profile.communication_style.what_works = Array.isArray(profile.communication_style.what_works) ? profile.communication_style.what_works : [];
     profile.communication_style.what_to_avoid = Array.isArray(profile.communication_style.what_to_avoid) ? profile.communication_style.what_to_avoid : [];
+    profile.attraction_triggers = Array.isArray(profile.attraction_triggers) ? profile.attraction_triggers : [];
+    profile.emotional_needs = Array.isArray(profile.emotional_needs) ? profile.emotional_needs : [];
+    profile.conversation_hooks = Array.isArray(profile.conversation_hooks) ? profile.conversation_hooks : [];
     profile.interests = Array.isArray(profile.interests) ? profile.interests : [];
     profile.key_facts = Array.isArray(profile.key_facts) ? profile.key_facts : [];
     profile.attachment_style = profile.attachment_style || 'secure';
     profile.ideal_approach = profile.ideal_approach || '';
 
     // Clamp traits to 0-10
-    for (const k of ['openness','playfulness','emotional_depth','flirtiness','directness','humor_level']) {
+    for (const k of ['openness','playfulness','emotional_depth','flirtiness','directness','humor_level','challenge_tolerance','emotional_reactivity','investment_tendency']) {
       const v = Number(profile.traits[k]);
       profile.traits[k] = isNaN(v) ? 5 : Math.max(0, Math.min(10, Math.round(v)));
     }
@@ -388,6 +391,9 @@ async function analyzeProfile() {
       ['Attachment style', profile.attachment_style],
       ['What works', profile.communication_style.what_works.join(', ')],
       ['Avoid', profile.communication_style.what_to_avoid.join(', ')],
+      ['Attraction triggers', (profile.attraction_triggers || []).join(', ')],
+      ['She needs', (profile.emotional_needs || []).join(', ')],
+      ['Hot topics', (profile.conversation_hooks || []).join(', ')],
       ['Key facts', profile.key_facts.join(', ')]
     ];
     rows.forEach(([label, val]) => {
@@ -446,21 +452,37 @@ function renderProfileCard() {
     traitsEl.appendChild(row);
   });
 
-  // Facts
+  // Strategy sections
   const factsEl = document.getElementById('profileFacts');
   factsEl.innerHTML = '';
-  const facts = p.key_facts || [];
-  if (facts.length) {
+  const sections = [
+    ['ATTRACTION TRIGGERS', p.attraction_triggers || []],
+    ['SHE CRAVES', p.emotional_needs || []],
+    ['HOT TOPICS', p.conversation_hooks || []],
+    ['KEY FACTS', p.key_facts || []]
+  ];
+  sections.forEach(([title, items]) => {
+    if (!items.length) return;
     const heading = document.createElement('div');
     heading.style.cssText = 'margin-top:8px;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:4px;';
-    heading.textContent = 'KEY FACTS';
+    heading.textContent = title;
     factsEl.appendChild(heading);
-    facts.forEach(f => {
+    items.forEach(f => {
       const div = document.createElement('div');
       div.style.cssText = 'font-size:12px;color:var(--text2);padding:2px 0;';
       div.textContent = '• ' + f;
       factsEl.appendChild(div);
     });
+  });
+  if (p.ideal_approach) {
+    const heading = document.createElement('div');
+    heading.style.cssText = 'margin-top:8px;font-size:12px;color:var(--accent);font-weight:600;margin-bottom:4px;';
+    heading.textContent = 'STRATEGY';
+    factsEl.appendChild(heading);
+    const strat = document.createElement('div');
+    strat.style.cssText = 'font-size:12px;color:var(--text2);padding:2px 0;font-style:italic;';
+    strat.textContent = p.ideal_approach;
+    factsEl.appendChild(strat);
   }
 
   // Tags
@@ -542,7 +564,7 @@ async function extractNewFacts(msgText) {
   try {
     const knownFacts = (herProfile.key_facts || []).join('; ');
     const resp = await callAI([
-      { role: 'system', content: 'Extract any NEW personal facts from this message that are NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Only extract concrete facts (names, places, preferences, events, feelings). Be very selective.' },
+      { role: 'system', content: 'Extract any NEW personal facts or emotional signals from this message that are NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Extract: concrete facts (names, places, preferences, events), emotional signals (what excites her, what bothers her, what she values), things useful as callbacks later (inside jokes, shared moments, unique details). Be selective but catch anything strategically useful.' },
       { role: 'user', content: 'Known facts: ' + knownFacts + '\n\nNew message from ' + (herProfile.name || 'Her') + ': "' + msgText + '"' }
     ], 150);
     const parsed = parseJSON(resp);
@@ -570,7 +592,7 @@ async function compressHistory() {
   const prev = summary ? 'Previous summary: ' + summary + '\n\n' : '';
   try {
     const resp = await callAI([
-      { role: 'system', content: 'Compress this dating conversation into a brief summary. Focus on: conversation flow, emotional tone shifts, plans/commitments, unresolved topics. Max 100 words. Do NOT include personal facts (stored separately).' },
+      { role: 'system', content: 'Compress this dating conversation into a strategic summary. Focus on: conversation flow, emotional tone shifts, plans/commitments, unresolved topics, inside jokes forming, who was chasing whom, any tests she threw, flirty moments, tension points. Max 100 words. Do NOT repeat personal facts (stored separately). Prioritize things useful for future callbacks and maintaining frame.' },
       { role: 'user', content: prev + 'New messages to compress:\n' + convo }
     ], 150);
     if (resp && resp !== 'No response') {
@@ -595,16 +617,32 @@ function buildContext() {
     ctx += 'Style: ' + (cs.preferred_tone || 'warm') + ' | Attachment: ' + (herProfile.attachment_style || 'unknown') + '\n';
     if (cs.what_works && cs.what_works.length) ctx += 'What works: ' + cs.what_works.join(', ') + '\n';
     if (cs.what_to_avoid && cs.what_to_avoid.length) ctx += 'Avoid: ' + cs.what_to_avoid.join(', ') + '\n';
-    if (facts.length) ctx += 'Key facts: ' + facts.join('; ') + '\n';
-    if (herProfile.ideal_approach) ctx += 'Approach: ' + herProfile.ideal_approach + '\n';
+    const triggers = herProfile.attraction_triggers || [];
+    if (triggers.length) ctx += 'Draws her in: ' + triggers.join('; ') + '\n';
+    const hooks = herProfile.conversation_hooks || [];
+    if (hooks.length) ctx += 'Hot topics: ' + hooks.join('; ') + '\n';
+    if (facts.length) ctx += 'Key facts (use as callbacks): ' + facts.join('; ') + '\n';
+    if (herProfile.ideal_approach) ctx += 'Strategy: ' + herProfile.ideal_approach + '\n';
     ctx += '\n';
   }
 
   if (summary) ctx += '[Earlier conversation]: ' + summary + '\n\n';
 
+  let herMsgs = 0, hisMsgs = 0, herChars = 0, hisChars = 0;
+  messages.forEach(m => {
+    if (m.role === 'her') { herMsgs++; herChars += m.text.length; }
+    else { hisMsgs++; hisChars += m.text.length; }
+  });
+  if (messages.length >= 4) {
+    ctx += '[Investment balance]: ';
+    if (hisChars > herChars * 1.4) ctx += 'He is investing MORE than her — pull back slightly.\n';
+    else if (herChars > hisChars * 1.4) ctx += 'She is investing more — good position, maintain light scarcity.\n';
+    else ctx += 'Balanced investment.\n';
+  }
+
   ctx += '[Recent messages]:\n';
   messages.forEach(m => {
-    ctx += (m.role === 'her' ? (herProfile?.name || 'Her') : 'You') + ' (' + m.time + '): ' + m.text + '\n';
+    ctx += (m.role === 'her' ? name : 'You') + ' (' + m.time + '): ' + m.text + '\n';
   });
 
   return ctx;
@@ -616,43 +654,124 @@ function buildSystemPrompt(task) {
   const tone = cs.preferred_tone || 'natural';
   const traits = herProfile?.traits || {};
 
-  let base = 'You are an expert dating coach. You\'re helping a guy text ' + name + '.';
+  let base = 'You are an elite dating strategist. Your goal: make ' + name + ' genuinely drawn to this guy through psychologically smart texting.';
+
+  base += '\n\n=== CORE PRINCIPLES (apply to EVERY suggestion) ===';
+  base += '\n1. NEVER be needy or try-hard. Confidence is the foundation. He has a life, she is a welcome addition to it.';
+  base += '\n2. CREATE TENSION — the best conversations have push-pull. Give warmth, then tease. Compliment, then challenge. Agreement is boring; playful friction creates chemistry.';
+  base += '\n3. MAKE HER INVEST — ask questions that make her think, share, and open up. The more she invests in the conversation, the more she values it.';
+  base += '\n4. EMOTIONAL SPIKES — flat conversations kill attraction. Create highs (excitement, laughter, butterflies) and mild lows (teasing, fake disapproval, playful withdrawal).';
+  base += '\n5. CALLBACK & INSIDE JOKES — reference things she said earlier. This creates intimacy and makes her feel you actually listen.';
+  base += '\n6. STRATEGIC VULNERABILITY — reveal personal things at the right moments, not constantly. Vulnerability after banter hits 10x harder than vulnerability out of nowhere.';
+  base += '\n7. LEAD THE FRAME — be the one who sets the topic, proposes plans, moves things forward. Do not just react to her.';
+  base += '\n8. QUALIFY HER — subtly make her feel she is earning your attention. "I don\'t usually vibe with people this fast" > "You are amazing."';
+  base += '\n9. MATCH ENERGY MINUS 10% — reply with slightly less intensity than her. If she sends 3 lines, send 2. This creates subtle chase dynamics.';
+  base += '\n10. FUTURE PROJECTION — casually plant seeds of future plans together. "we should..." or "when we..." creates a shared narrative.';
 
   if (herProfile) {
-    base += '\n\nCRITICAL — Adapt ALL suggestions to ' + name + "'s psychology:";
-    base += '\n- She responds best to: ' + tone + ' tone';
+    base += '\n\n=== ' + name.toUpperCase() + '\'S PSYCHOLOGY ===';
+    base += '\n- Tone: ' + tone;
 
     const pl = Number(traits.playfulness) || 5;
     const fl = Number(traits.flirtiness) || 5;
     const di = Number(traits.directness) || 5;
-    base += '\n- Playfulness: ' + pl + '/10, Flirtiness: ' + fl + '/10, Directness: ' + di + '/10';
-    base += '\n- Message length: ' + (cs.message_length || 'medium');
-    base += '\n- Emoji usage: ' + (cs.emoji_usage || 'moderate');
+    const ed = Number(traits.emotional_depth) || 5;
+    const ct = Number(traits.challenge_tolerance) || 5;
+    const er = Number(traits.emotional_reactivity) || 5;
+    const it = Number(traits.investment_tendency) || 5;
+    const hu = Number(traits.humor_level) || 5;
 
-    if (herProfile.ideal_approach) base += '\n- ' + herProfile.ideal_approach;
+    base += '\n- Playfulness: ' + pl + '/10 | Flirtiness: ' + fl + '/10 | Directness: ' + di + '/10';
+    base += '\n- Challenge tolerance: ' + ct + '/10 | Emotional reactivity: ' + er + '/10';
+    base += '\n- Her investment tendency: ' + it + '/10 | Humor: ' + hu + '/10 | Depth: ' + ed + '/10';
+    base += '\n- Message length: ' + (cs.message_length || 'medium') + ' | Emoji: ' + (cs.emoji_usage || 'moderate');
+
+    if (herProfile.ideal_approach) base += '\n- STRATEGY: ' + herProfile.ideal_approach;
+
+    const triggers = herProfile.attraction_triggers || [];
+    if (triggers.length) base += '\n- What draws her in: ' + triggers.join('; ');
+
+    const needs = herProfile.emotional_needs || [];
+    if (needs.length) base += '\n- She emotionally craves: ' + needs.join('; ');
+
+    const hooks = herProfile.conversation_hooks || [];
+    if (hooks.length) base += '\n- Topics that light her up: ' + hooks.join('; ');
 
     const facts = herProfile.key_facts || [];
-    if (facts.length) base += '\n- Remember these facts about her: ' + facts.join('; ');
+    if (facts.length) base += '\n- Key facts (USE these as callbacks): ' + facts.join('; ');
 
-    if (fl >= 7) base += '\n- She likes flirty energy — lean into it, be bold';
-    else if (fl <= 3) base += "\n- She's not very flirty — keep it warm but not overtly romantic";
+    if (cs.what_works && cs.what_works.length) base += '\n- What works on her: ' + cs.what_works.join(', ');
+    if (cs.what_to_avoid && cs.what_to_avoid.length) base += '\n- AVOID: ' + cs.what_to_avoid.join(', ');
 
-    if (pl >= 7) base += '\n- She loves playful banter — tease lightly, use humor';
-    else if (pl <= 3) base += '\n- She prefers genuine/serious conversation — skip the jokes';
+    if (ct >= 7) base += '\n- HIGH challenge tolerance — she LOVES being teased and challenged. Push-pull hard. Playful disagreement turns her on.';
+    else if (ct <= 3) base += '\n- LOW challenge tolerance — be warm first, tease very gently. She needs to feel safe before you challenge.';
 
-    if (di >= 7) base += "\n- She appreciates directness — don't beat around the bush";
-    else if (di <= 3) base += "\n- She's indirect — match her pace, be subtle";
+    if (fl >= 7 && ct >= 6) base += '\n- Flirty AND likes challenge — be bold, escalate confidently, mix compliments with teasing.';
+    else if (fl >= 7 && ct < 4) base += '\n- Flirty but sensitive — flirt warmly but do not tease about things she cares about.';
+    else if (fl <= 3) base += '\n- Low flirt — build emotional connection first, let romantic tension grow naturally through depth, not overt flirting.';
 
-    if (herProfile.attachment_style === 'anxious') base += '\n- She may need reassurance — be consistent and responsive';
-    if (herProfile.attachment_style === 'avoidant') base += "\n- Give her space — don't double text or push too hard";
+    if (pl >= 7) base += '\n- High playfulness — banter is your weapon. Use it constantly. She falls for guys who make her laugh.';
+    else if (pl <= 3) base += '\n- Low playfulness — she values substance over jokes. Go deep, ask meaningful questions.';
+
+    if (di >= 7) base += '\n- Direct person — match it. Be clear about interest. No games, but still have mystery.';
+    else if (di <= 3) base += '\n- Indirect — read between her lines. She hints rather than states. Mirror that subtlety.';
+
+    if (er >= 7) base += '\n- HIGH emotional reactivity — emotional spikes work incredibly well. Surprise her, be unpredictable, mix energy levels.';
+    else if (er <= 3) base += '\n- LOW reactivity — slow burn. Build steadily. Do not expect big reactions; consistency wins.';
+
+    if (it <= 4) base += '\n- LOW investment tendency — she does not give much. Ask open-ended questions. Make it easy and fun to respond. Reward her when she does invest.';
+    else if (it >= 7) base += '\n- HIGH investment — she invests a lot. Match some but not all of it. Let her chase slightly.';
+
+    if (herProfile.attachment_style === 'anxious') {
+      base += '\n- ANXIOUS attachment — she needs reassurance but do not over-give it. Be consistent (reply reliably) but not smothering. Mild push-pull creates healthy tension. Randomly send something sweet after silence — it hits hard.';
+    }
+    if (herProfile.attachment_style === 'avoidant') {
+      base += '\n- AVOIDANT attachment — she pulls away when things get too close. Give space freely. Be emotionally available but never clingy. The less you chase, the more she comes. Keep things light until SHE goes deep first.';
+    }
+    if (herProfile.attachment_style === 'secure') {
+      base += '\n- SECURE attachment — she is grounded. Be genuine, escalate naturally. She respects directness and consistency.';
+    }
   }
 
+  base += '\n\n=== CONVERSATION READ ===';
+  base += '\nBefore suggesting, analyze: Who is investing more? Is the energy rising or falling? What is the emotional temperature? Adjust suggestions to optimize momentum.';
+  base += '\n- If she is investing more than him: maintain slight scarcity, do not over-match';
+  base += '\n- If he is investing more: pull back, shorter reply, change topic, or end with something that makes her want to continue';
+  base += '\n- If energy is flat: inject an emotional spike (bold tease, unexpected topic, playful challenge)';
+  base += '\n- If she just opened up emotionally: meet her there briefly, then lighten the mood. Do not camp in heavy territory.';
+
   if (task === 'suggest') {
-    base += '\n\nGive 3 reply options matched to her preferred ' + tone + ' style. Format EXACTLY:\nOPTION 1 (label):\nmessage\n\nOPTION 2 (label):\nmessage\n\nOPTION 3 (label):\nmessage\n\nKeep replies natural and matched to her energy.';
+    base += '\n\n=== TASK: SUGGEST 3 REPLIES ===';
+    base += '\nGive 3 strategically different options. Each should be something a confident, high-value guy would actually text. Format EXACTLY:';
+    base += '\nOPTION 1 (Bold):\nmessage\n\nOPTION 2 (Smooth):\nmessage\n\nOPTION 3 (Intriguing):\nmessage';
+    base += '\n\nRules:';
+    base += '\n- NEVER start with "Hey" or "Haha" or just answer her question flatly';
+    base += '\n- At least one option should include a callback to something she mentioned before';
+    base += '\n- At least one should make her WANT to reply (end with intrigue, a question, or a tease)';
+    base += '\n- At least one should have push-pull (warmth + challenge in the same message)';
+    base += '\n- Keep them natural — they should sound like HIM, not a pickup artist';
+    base += '\n- Match her message length minus about 10%';
   } else if (task === 'rephrase') {
-    base += '\n\nRephrase the user\'s draft 3 ways tuned to ' + name + '\'s style. Format EXACTLY:\nSMOOTH:\nmessage\n\nPLAYFUL:\nmessage\n\nDIRECT:\nmessage\n\nKeep the same meaning. Match her vibe.';
+    base += '\n\n=== TASK: REPHRASE HIS DRAFT ===';
+    base += '\nHe wrote something — make it land better. Keep his intent but upgrade the delivery. Format EXACTLY:';
+    base += '\nSMOOTH:\nmessage\n\nPLAYFUL:\nmessage\n\nDIRECT:\nmessage';
+    base += '\n\nRules:';
+    base += '\n- SMOOTH: confident, warm, slightly mysterious — makes her smile';
+    base += '\n- PLAYFUL: add a tease, callback, or witty twist — makes her laugh';
+    base += '\n- DIRECT: honest and bold — cuts through games';
+    base += '\n- Remove any needy language (too many exclamation marks, over-explaining, seeking approval)';
+    base += '\n- Add push-pull where possible';
+    base += '\n- If his draft is too long, tighten it. Less is more.';
   } else if (task === 'redflags') {
-    base += '\n\nAnalyze for red/green flags considering ' + name + '\'s known personality. Format each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description. End with a brief overall assessment line starting with "OVERALL:".';
+    base += '\n\n=== TASK: RED FLAG ANALYSIS ===';
+    base += '\nAnalyze the conversation for manipulation, power dynamics, and attraction signals. Think like a strategist, not a therapist.';
+    base += '\nFormat each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description.';
+    base += '\nAlso look for:';
+    base += '\n- Signs she is testing him (compliance tests, jealousy plays, response time games)';
+    base += '\n- Signs of genuine interest vs. just being polite';
+    base += '\n- Power balance — who is chasing whom';
+    base += '\n- Emotional investment level from her side';
+    base += '\nEnd with "OVERALL:" followed by strategic assessment and what to do next.';
   }
 
   return base;
@@ -969,7 +1088,7 @@ function parseSuggestions(text) {
   let current = null;
   const items = [];
   lines.forEach(function(line) {
-    if (line.match(/^(OPTION \d|SMOOTH|PLAYFUL|DIRECT|1\.|2\.|3\.)[:\s]*\(?/i)) {
+    if (line.match(/^(OPTION \d|SMOOTH|PLAYFUL|DIRECT|BOLD|INTRIGUING|1\.|2\.|3\.)[:\s]*\(?/i)) {
       if (current && current.text) items.push(current);
       current = { label: line.replace(/[:\s]*$/, '').trim(), text: '' };
     } else if (current && line.trim()) {
