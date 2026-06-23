@@ -169,11 +169,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   <div class="panel" id="settingsPanel">
     <div class="panel-title">API Settings</div>
     <div class="grid2">
-      <div class="field"><label>Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">Custom URL</option></select></div>
+      <div class="field"><label>Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="claude">Claude (Anthropic)</option><option value="bedrock">Claude (AWS Bedrock)</option><option value="custom">Custom URL</option></select></div>
       <div class="field"><label>Model</label><input type="text" id="modelName" placeholder="gpt-4o-mini"></div>
     </div>
     <div class="field"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
     <div class="custom-url-row" id="customUrlRow"><div class="field"><label>Base URL</label><input type="text" id="customUrl" placeholder="https://api.example.com/v1"></div></div>
+    <div class="custom-url-row" id="bedrockRow"><div class="field"><label>AWS Region</label><input type="text" id="bedrockRegion" placeholder="us-east-1" value="us-east-1"></div></div>
     <div style="display:flex;gap:8px;margin-top:4px;">
       <button class="clear-btn" onclick="clearChat()">Clear chat</button>
       <button class="clear-btn" onclick="resetAll()" style="border-color:var(--muted);color:var(--muted);">Reset everything</button>
@@ -275,6 +276,8 @@ const MIN_MSG_FOR_EXTRACTION = 15;
 const PROVIDERS = {
   openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
   deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
+  claude: { url: 'https://api.anthropic.com/v1/messages', model: 'claude-opus-4-8' },
+  bedrock: { url: '', model: 'anthropic.claude-opus-4-8-v1' },
 };
 
 // ==================== INIT ====================
@@ -283,7 +286,7 @@ window.addEventListener('DOMContentLoaded', () => {
   renderChat();
   renderProfileCard();
   document.getElementById('provider').addEventListener('change', onProviderChange);
-  ['apiKey','modelName','customUrl'].forEach(id =>
+  ['apiKey','modelName','customUrl','bedrockRegion'].forEach(id =>
     document.getElementById(id).addEventListener('change', saveState)
   );
   document.getElementById('msgInput').addEventListener('keydown', e => {
@@ -322,7 +325,8 @@ function toggleProfileBody() {
 function onProviderChange() {
   const p = document.getElementById('provider').value;
   document.getElementById('customUrlRow').className = 'custom-url-row' + (p === 'custom' ? ' show' : '');
-  if (p !== 'custom') document.getElementById('modelName').placeholder = PROVIDERS[p]?.model || 'model-name';
+  document.getElementById('bedrockRow').className = 'custom-url-row' + (p === 'bedrock' ? ' show' : '');
+  if (PROVIDERS[p]) document.getElementById('modelName').placeholder = PROVIDERS[p].model;
   saveState();
 }
 
@@ -373,7 +377,7 @@ async function analyzeProfile() {
     const resp = await callAI([
       { role: 'system', content: 'You are an elite dating strategist who understands female psychology deeply. Analyze this person and build a strategic profile. Return ONLY valid JSON (no markdown, no backticks).\n\nStructure:\n{"name":"string","summary":"2-3 sentence personality read — what drives her, what she craves emotionally, what kind of guy gets her attention","traits":{"openness":0,"playfulness":0,"emotional_depth":0,"flirtiness":0,"directness":0,"humor_level":0,"challenge_tolerance":0,"emotional_reactivity":0,"investment_tendency":0},"communication_style":{"preferred_tone":"flirty|playful|warm|witty|chill|serious","message_length":"short|medium|long","emoji_usage":"heavy|moderate|minimal|none","response_pattern":"string","what_works":["string"],"what_to_avoid":["string"]},"attraction_triggers":["things that make her feel special or drawn to someone"],"emotional_needs":["what she craves emotionally — validation, excitement, safety, intellectual stimulation, etc."],"conversation_hooks":["topics that get her most engaged and excited"],"interests":["string"],"key_facts":["string"],"attachment_style":"secure|anxious|avoidant|mixed","ideal_approach":"3-4 sentences — the exact texting strategy that would make her lean in. Include when to be bold vs pull back, how to create tension, and what makes her chase."}\n\nIMPORTANT:\n- challenge_tolerance (0-10): How much teasing/push-pull she enjoys. High = loves being challenged. Low = needs gentleness.\n- emotional_reactivity (0-10): How quickly her emotions shift. High = emotional spikes work well. Low = slow burn.\n- investment_tendency (0-10): How much effort she puts into conversations. High = invests a lot. Low = you need to draw her out.\n- attraction_triggers: Think deeply — does she want to feel chosen? Intellectually matched? Desired? Protected?\n- ideal_approach: This is STRATEGIC. Not just be nice. Think about what creates genuine desire.\n\nAll trait values must be integers 0-10. Be deeply insightful. Read between the lines.' },
       { role: 'user', content: 'Her name: ' + name + '\n\nDetails about her:\n' + details + (sampleMsgs ? '\n\nSample messages from her:\n' + sampleMsgs : '') }
-    ], 800);
+    ], 600);
 
     const profile = parseJSON(resp);
     if (!profile) throw new Error('AI returned invalid format. Try again.');
@@ -612,7 +616,7 @@ async function extractNewFacts(msgText) {
     const resp = await callAI([
       { role: 'system', content: 'Extract NEW strategic intel from this message that is NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Extract: concrete facts (names, people, places, preferences, events, schedule), emotional signals (what excites her, triggers her, bothers her), relationship intel (mentions of exes, other guys, relationship views, dealbreakers), callback material (inside jokes forming, unique phrases she uses, shared moments), vulnerability markers (fears, insecurities, dreams she shares — handle with care but remember). Be selective but catch anything that gives strategic advantage.' },
       { role: 'user', content: 'Known facts: ' + knownFacts + '\n\nNew message from ' + (herProfile.name || 'Her') + ': "' + msgText + '"' }
-    ], 150);
+    ], 100);
     const parsed = parseJSON(resp);
     if (parsed && Array.isArray(parsed.new_facts) && parsed.new_facts.length) {
       if (!herProfile.key_facts) herProfile.key_facts = [];
@@ -640,7 +644,7 @@ async function compressHistory() {
     const resp = await callAI([
       { role: 'system', content: 'Compress this dating conversation into a strategic intelligence brief. Focus on: emotional arc (what highs/lows happened), power dynamic shifts (who chased, who pulled back), tests she ran and whether he passed, inside jokes forming, flirty moments and escalation points, open loops left dangling, plans or future projections made, any mistakes he made (over-investing, being too available, killing tension). Max 120 words. Do NOT repeat personal facts. Prioritize: callbacks he can reference, frame to maintain, and momentum to build on.' },
       { role: 'user', content: prev + 'New messages to compress:\n' + convo }
-    ], 150);
+    ], 120);
     if (resp && resp !== 'No response') {
       summary = resp;
       messages = recent;
@@ -657,19 +661,8 @@ function buildContext() {
   let ctx = '';
 
   if (herProfile) {
-    const cs = herProfile.communication_style || {};
-    const facts = herProfile.key_facts || [];
-    ctx += '[' + name + "'s Profile]\n";
-    ctx += 'Style: ' + (cs.preferred_tone || 'warm') + ' | Attachment: ' + (herProfile.attachment_style || 'unknown') + '\n';
-    if (cs.what_works && cs.what_works.length) ctx += 'What works: ' + cs.what_works.join(', ') + '\n';
-    if (cs.what_to_avoid && cs.what_to_avoid.length) ctx += 'Avoid: ' + cs.what_to_avoid.join(', ') + '\n';
-    const triggers = herProfile.attraction_triggers || [];
-    if (triggers.length) ctx += 'Draws her in: ' + triggers.join('; ') + '\n';
-    const hooks = herProfile.conversation_hooks || [];
-    if (hooks.length) ctx += 'Hot topics: ' + hooks.join('; ') + '\n';
-    if (facts.length) ctx += 'Key facts (use as callbacks): ' + facts.join('; ') + '\n';
-    if (herProfile.ideal_approach) ctx += 'Strategy: ' + herProfile.ideal_approach + '\n';
-    ctx += '\n';
+    const facts = (herProfile.key_facts || []);
+    if (facts.length) ctx += '[Callbacks]: ' + facts.slice(-10).join('; ') + '\n';
   }
 
   if (summary) ctx += '[Earlier conversation]: ' + summary + '\n\n';
@@ -740,6 +733,7 @@ function buildSystemPrompt(task) {
   let base = 'You are an elite dating strategist. Your goal: make ' + name + ' genuinely drawn to this guy through psychologically smart texting.';
 
   base += '\n\n=== CORE PRINCIPLES (apply to EVERY suggestion) ===';
+  base += '\n0. SOUND 100% HUMAN — every suggestion must read like a real person typed it on their phone. Use casual grammar, lowercase, occasional typos-style shortcuts (gonna, wanna, ngl, lol). NO perfect punctuation, NO essay sentences, NO AI-sounding phrasing. If it sounds like it was written by a chatbot, rewrite it. Match how young people actually text.';
   base += '\n1. NEVER be needy or try-hard. Confidence is the foundation. He has a life, she is a welcome addition to it.';
   base += '\n2. CREATE TENSION — the best conversations have push-pull. Give warmth, then tease. Compliment, then challenge. Agreement is boring; playful friction creates chemistry.';
   base += '\n3. MAKE HER INVEST — ask questions that make her think, share, and open up. The more she invests in the conversation, the more she values it.';
@@ -786,33 +780,33 @@ function buildSystemPrompt(task) {
     if (cs.what_works && cs.what_works.length) base += '\n- What works on her: ' + cs.what_works.join(', ');
     if (cs.what_to_avoid && cs.what_to_avoid.length) base += '\n- AVOID: ' + cs.what_to_avoid.join(', ');
 
-    if (ct >= 7) base += '\n- HIGH challenge tolerance — she LOVES being teased and challenged. Push-pull hard. Playful disagreement turns her on.';
-    else if (ct <= 3) base += '\n- LOW challenge tolerance — be warm first, tease very gently. She needs to feel safe before you challenge.';
+    if (ct >= 7) base += '\n- High challenge: push-pull hard, tease freely';
+    else if (ct <= 3) base += '\n- Low challenge: warm first, tease gently';
 
-    if (fl >= 7 && ct >= 6) base += '\n- Flirty AND likes challenge — be bold, escalate confidently, mix compliments with teasing.';
-    else if (fl >= 7 && ct < 4) base += '\n- Flirty but sensitive — flirt warmly but do not tease about things she cares about.';
-    else if (fl <= 3) base += '\n- Low flirt — build emotional connection first, let romantic tension grow naturally through depth, not overt flirting.';
+    if (fl >= 7 && ct >= 6) base += '\n- Flirty+likes challenge: bold, escalate, compliments+teasing';
+    else if (fl >= 7 && ct < 4) base += '\n- Flirty but sensitive: warm flirting, no harsh teasing';
+    else if (fl <= 3) base += '\n- Low flirt: emotional connection first, tension through depth';
 
-    if (pl >= 7) base += '\n- High playfulness — banter is your weapon. Use it constantly. She falls for guys who make her laugh.';
-    else if (pl <= 3) base += '\n- Low playfulness — she values substance over jokes. Go deep, ask meaningful questions.';
+    if (pl >= 7) base += '\n- Playful: banter is key. Make her laugh.';
+    else if (pl <= 3) base += '\n- Serious: substance>jokes. Go deep.';
 
-    if (di >= 7) base += '\n- Direct person — match it. Be clear about interest. No games, but still have mystery.';
-    else if (di <= 3) base += '\n- Indirect — read between her lines. She hints rather than states. Mirror that subtlety.';
+    if (di >= 7) base += '\n- Direct: match it. Clear interest, some mystery.';
+    else if (di <= 3) base += '\n- Indirect: read between lines, mirror subtlety.';
 
-    if (er >= 7) base += '\n- HIGH emotional reactivity — emotional spikes work incredibly well. Surprise her, be unpredictable, mix energy levels.';
-    else if (er <= 3) base += '\n- LOW reactivity — slow burn. Build steadily. Do not expect big reactions; consistency wins.';
+    if (er >= 7) base += '\n- Reactive: emotional spikes work great. Be unpredictable.';
+    else if (er <= 3) base += '\n- Low reactive: slow burn. Consistency wins.';
 
-    if (it <= 4) base += '\n- LOW investment tendency — she does not give much. Ask open-ended questions. Make it easy and fun to respond. Reward her when she does invest.';
-    else if (it >= 7) base += '\n- HIGH investment — she invests a lot. Match some but not all of it. Let her chase slightly.';
+    if (it <= 4) base += '\n- Low investor: open Qs, make replying fun, reward investment.';
+    else if (it >= 7) base += '\n- High investor: match some, not all. Let her chase.';
 
     if (herProfile.attachment_style === 'anxious') {
-      base += '\n- ANXIOUS attachment — she needs reassurance but do not over-give it. Be consistent (reply reliably) but not smothering. Mild push-pull creates healthy tension. Randomly send something sweet after silence — it hits hard.';
+      base += '\n- ANXIOUS: consistent but dont smother. Sweet msg after silence hits hard.';
     }
     if (herProfile.attachment_style === 'avoidant') {
-      base += '\n- AVOIDANT attachment — she pulls away when things get too close. Give space freely. Be emotionally available but never clingy. The less you chase, the more she comes. Keep things light until SHE goes deep first.';
+      base += '\n- AVOIDANT: give space. Less chase=more she comes. Light until SHE goes deep.';
     }
     if (herProfile.attachment_style === 'secure') {
-      base += '\n- SECURE attachment — she is grounded. Be genuine, escalate naturally. She respects directness and consistency.';
+      base += '\n- SECURE: genuine, escalate naturally. Directness+consistency.';
     }
   }
 
@@ -833,14 +827,13 @@ function buildSystemPrompt(task) {
   base += '\n- BUILDING (15-30 msgs): Start creating inside jokes, go slightly deeper, begin future projection ("we should..."). Build an "us vs the world" dynamic. Start light flirting.';
   base += '\n- COMFORT (30+ msgs): She trusts you now. Escalate: more direct flirting, suggest meeting, create real plans. Mix emotional depth with playful tension. Do not let it stagnate into pen-pal territory.';
 
-  base += '\n\n=== CONVERSATION READ ===';
-  base += '\nBefore suggesting, analyze: Who is investing more? Is the energy rising or falling? What is the emotional temperature? What stage are we in? Adjust suggestions to optimize momentum.';
-  base += '\n- If she is investing more than him: maintain slight scarcity, do not over-match';
-  base += '\n- If he is investing more: pull back, shorter reply, change topic, or end with something that makes her want to continue';
-  base += '\n- If energy is flat: inject an emotional spike (bold tease, unexpected topic, playful challenge)';
-  base += '\n- If she just opened up emotionally: meet her there briefly, then lighten the mood. Do not camp in heavy territory.';
-  base += '\n- If she is testing (short replies, delayed, provocative statements): PASS THE TEST. Do not get defensive or over-explain. Agree and amplify, or ignore and redirect.';
-  base += '\n- If conversation is dying: use a pattern interrupt or open loop, never a boring "wyd" or "how was your day"';
+  base += '\n\nREAD THE ROOM:';
+  base += '\n- She investing more: maintain scarcity';
+  base += '\n- He investing more: pull back, shorter, change topic';
+  base += '\n- Flat energy: emotional spike (tease, unexpected topic)';
+  base += '\n- She opened up: match briefly, then lighten';
+  base += '\n- She testing (cold/provocative/delayed): PASS IT. Agree&amplify or ignore&redirect. Never defensive.';
+  base += '\n- Dying convo: pattern interrupt or open loop. Never "wyd"';
 
   if (task === 'suggest') {
     base += '\n\n=== TASK: SUGGEST 3 REPLIES ===';
@@ -854,6 +847,7 @@ function buildSystemPrompt(task) {
     base += '\n- At least one should have push-pull (warmth + challenge in the same message)';
     base += '\n- Keep them natural — they should sound like HIM, not a pickup artist';
     base += '\n- Match her message length minus about 10%';
+    base += '\n- CRITICAL: Sound like a real person texting, NOT an AI. Use lowercase, casual tone, abbreviations where natural. No perfect grammar. No "I must say" or "I have to admit" or any AI-speak. Think: how would a confident 22-year-old guy actually type this on his phone?';
     base += '\n- If she is TESTING you (being cold, provocative, mentioning other guys, late replies) — your suggestions should PASS the test. Never get defensive. Options: agree & amplify, playfully ignore, flip the frame.';
     base += '\n- If the context says OPPORTUNITY for a date — at least one option should smoothly move toward meeting up';
     base += '\n- If WARNING about double-text — suggest waiting instead, or a high-value pattern interrupt for later';
@@ -869,6 +863,7 @@ function buildSystemPrompt(task) {
     base += '\n- Remove any needy language (too many exclamation marks, over-explaining, seeking approval)';
     base += '\n- Add push-pull where possible';
     base += '\n- If his draft is too long, tighten it. Less is more.';
+    base += '\n- Output must sound like a real human texting. Casual, lowercase ok, no AI language. Think phone keyboard not essay.';
   } else if (task === 'redflags') {
     base += '\n\n=== TASK: RED FLAG ANALYSIS ===';
     base += '\nAnalyze the conversation like a dating strategist reading every subtext. Format each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description.';
@@ -914,7 +909,7 @@ async function getSuggestions() {
     const resp = await callAI([
       { role: 'system', content: buildSystemPrompt('suggest') },
       { role: 'user', content: buildContext() + '\n\nSuggest 3 replies matched to her style.' }
-    ], 500);
+    ], 350);
     showSuggestions(resp, false);
   } catch(e) { showError(e.message); }
   unlockUI();
@@ -930,7 +925,7 @@ async function checkRedFlags() {
     const resp = await callAI([
       { role: 'system', content: buildSystemPrompt('redflags') },
       { role: 'user', content: buildContext() + (input ? '\n\n[Draft to check]: ' + input : '') + '\n\nAnalyze ' + who + ' for red/green flags.' }
-    ], 500);
+    ], 350);
     showRedFlags(resp);
   } catch(e) { showError(e.message); }
   unlockUI();
@@ -946,7 +941,7 @@ async function rewriteMessage() {
     const resp = await callAI([
       { role: 'system', content: buildSystemPrompt('rephrase') },
       { role: 'user', content: buildContext() + '\n\nRewrite this for ' + name + ': "' + input + '"' }
-    ], 400);
+    ], 300);
     showSuggestions(resp, true);
   } catch(e) { showError(e.message); }
   unlockUI();
@@ -968,15 +963,22 @@ async function callAI(msgs, maxTokens) {
   const provider = document.getElementById('provider').value;
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) throw new Error('Add your API key in settings (gear icon)');
-  let url, model;
+  const model = document.getElementById('modelName').value.trim() || PROVIDERS[provider]?.model || 'default';
+
+  // Route to appropriate API format
+  if (provider === 'claude') {
+    return callClaude(apiKey, model, msgs, maxTokens);
+  } else if (provider === 'bedrock') {
+    return callBedrock(apiKey, model, msgs, maxTokens);
+  }
+
+  let url;
   if (provider === 'custom') {
     url = document.getElementById('customUrl').value.trim();
     if (!url) throw new Error('Enter base URL in settings');
     url = url.replace(/\/+$/, '') + '/chat/completions';
-    model = document.getElementById('modelName').value.trim() || 'default';
   } else {
     url = PROVIDERS[provider].url;
-    model = document.getElementById('modelName').value.trim() || PROVIDERS[provider].model;
   }
 
   let resp;
@@ -992,23 +994,106 @@ async function callAI(msgs, maxTokens) {
 
   if (!resp.ok) {
     let errMsg = 'API error ' + resp.status;
-    try {
-      const err = await resp.json();
-      if (err.error?.message) errMsg = err.error.message;
-    } catch(e) {}
+    try { const err = await resp.json(); if (err.error?.message) errMsg = err.error.message; } catch(e) {}
     throw new Error(errMsg);
   }
 
   let data;
-  try {
-    data = await resp.json();
-  } catch(e) {
-    throw new Error('Invalid response from API');
-  }
-
+  try { data = await resp.json(); } catch(e) { throw new Error('Invalid response from API'); }
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error('Empty response from API');
   return content;
+}
+
+async function callClaude(apiKey, model, msgs, maxTokens) {
+  // Convert OpenAI format to Claude Messages API format
+  let system = '';
+  const claudeMsgs = [];
+  msgs.forEach(m => {
+    if (m.role === 'system') { system += (system ? '\n\n' : '') + m.content; }
+    else { claudeMsgs.push({ role: m.role, content: m.content }); }
+  });
+  // Ensure alternating user/assistant and starts with user
+  if (!claudeMsgs.length || claudeMsgs[0].role !== 'user') {
+    claudeMsgs.unshift({ role: 'user', content: 'Analyze and respond.' });
+  }
+
+  let resp;
+  try {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system: system || undefined, messages: claudeMsgs, temperature: 0.75 })
+    });
+  } catch(e) { throw new Error('Network error — check connection'); }
+
+  if (!resp.ok) {
+    let errMsg = 'Claude API error ' + resp.status;
+    try { const err = await resp.json(); if (err.error?.message) errMsg = err.error.message; } catch(e) {}
+    throw new Error(errMsg);
+  }
+
+  const data = await resp.json();
+  const text = data.content?.[0]?.text;
+  if (!text) throw new Error('Empty response from Claude');
+  return text;
+}
+
+async function callBedrock(apiKey, model, msgs, maxTokens) {
+  // For Bedrock, apiKey should be in format: ACCESS_KEY:SECRET_KEY
+  // Or user can use a custom proxy URL
+  const region = document.getElementById('bedrockRegion').value.trim() || 'us-east-1';
+  const proxyUrl = document.getElementById('customUrl').value.trim();
+
+  if (!proxyUrl) {
+    throw new Error('Bedrock requires a proxy URL. Set up a simple AWS proxy endpoint and enter it as Base URL. Direct browser-to-Bedrock calls need AWS SigV4 signing which requires a proxy. Format: your-proxy-url/invoke');
+  }
+
+  // Convert to Claude Messages format
+  let system = '';
+  const claudeMsgs = [];
+  msgs.forEach(m => {
+    if (m.role === 'system') { system += (system ? '\n\n' : '') + m.content; }
+    else { claudeMsgs.push({ role: m.role, content: m.content }); }
+  });
+  if (!claudeMsgs.length || claudeMsgs[0].role !== 'user') {
+    claudeMsgs.unshift({ role: 'user', content: 'Analyze and respond.' });
+  }
+
+  let resp;
+  try {
+    resp = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: maxTokens,
+        system: system || undefined,
+        messages: claudeMsgs,
+        temperature: 0.75,
+        anthropic_version: 'bedrock-2023-05-31'
+      })
+    });
+  } catch(e) { throw new Error('Network error — check proxy URL and connection'); }
+
+  if (!resp.ok) {
+    let errMsg = 'Bedrock error ' + resp.status;
+    try { const err = await resp.json(); if (err.error?.message || err.message) errMsg = err.error?.message || err.message; } catch(e) {}
+    throw new Error(errMsg);
+  }
+
+  const data = await resp.json();
+  const text = data.content?.[0]?.text;
+  if (!text) throw new Error('Empty response from Bedrock');
+  return text;
 }
 
 // ==================== RENDER AI RESPONSES ====================
@@ -1117,7 +1202,8 @@ function saveState() {
       provider: document.getElementById('provider').value,
       apiKey: document.getElementById('apiKey').value,
       model: document.getElementById('modelName').value,
-      customUrl: document.getElementById('customUrl').value
+      customUrl: document.getElementById('customUrl').value,
+      bedrockRegion: document.getElementById('bedrockRegion').value
     }));
   } catch(e) {
     console.warn('Failed to save state:', e);
@@ -1136,6 +1222,7 @@ function loadState() {
       if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
       if (s.model) document.getElementById('modelName').value = s.model;
       if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
+      if (s.bedrockRegion) document.getElementById('bedrockRegion').value = s.bedrockRegion;
       // Load active profile into working state
       if (activeProfileId && profiles[activeProfileId]) {
         const p = profiles[activeProfileId];
