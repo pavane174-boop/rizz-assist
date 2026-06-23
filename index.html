@@ -919,20 +919,18 @@ async function callAI(msgs, maxTokens) {
     url = PROVIDERS[provider].url;
   }
 
-  // OpenAI o-series models: no temperature, no system role, use max_completion_tokens
+  // OpenAI models: no temperature (many reject it), use max_completion_tokens
+  // o-series additionally need system->user conversion
   const isOModel = provider === 'openai' && /^o[0-9]/.test(model);
   let apiMsgs = msgs;
   if (isOModel) {
-    // Convert system messages to user messages for o-series
     apiMsgs = msgs.map(m => m.role === 'system' ? { role: 'user', content: '[Instructions]: ' + m.content } : m);
   }
 
   const bodyObj = { model: model, messages: apiMsgs };
-  if (isOModel) {
+  if (provider === 'openai') {
     bodyObj.max_completion_tokens = maxTokens;
-  } else if (provider === 'openai') {
-    bodyObj.max_completion_tokens = maxTokens;
-    bodyObj.temperature = 0.75;
+    // No temperature — GPT-5.5 and o-series reject non-default values
   } else {
     bodyObj.max_tokens = maxTokens;
     bodyObj.temperature = 0.75;
