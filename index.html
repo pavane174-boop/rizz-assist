@@ -126,6 +126,21 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 @keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
 @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+.profile-switcher{display:flex;align-items:center;gap:6px;margin-bottom:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;}
+.profile-switcher select{flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;}
+.profile-switcher select:focus{border-color:var(--accent);}
+.switcher-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);transition:all .2s;flex-shrink:0;}
+.switcher-btn:hover{border-color:var(--accent);color:var(--accent);}
+.switcher-btn.danger:hover{border-color:var(--red);color:var(--red);}
+
+.dark{--bg:#121218;--surface:#1a1a24;--surface2:#252536;--accent:#8b7cf7;--accent-light:#a29bfe;
+  --green:#00d9a3;--green-bg:#0a2e24;--red:#ff6b6b;--red-bg:#2e1515;--yellow:#ffc048;--yellow-bg:#2e2510;
+  --text:#e8e8f0;--text2:#aaa;--muted:#777;--border:#2a2a3a;--radius:12px;}
+.dark .msg.her{background:var(--surface2);border-color:var(--border);color:var(--text);}
+.dark .field input,.dark .field select,.dark .field textarea{background:var(--surface);color:var(--text);border-color:var(--border);}
+.dark .modal{background:var(--surface);}
+.dark .modal-overlay{background:rgba(0,0,0,.7);}
 </style>
 </head>
 <body>
@@ -138,9 +153,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <p id="headerSub">Your dating wingman AI</p>
     </div>
     <div class="header-btns">
+      <button class="icon-btn" onclick="toggleDarkMode()" id="btnDark" title="Dark mode">&#9790;</button>
       <button class="icon-btn" onclick="handleProfileBtn()" id="btnProfile" title="Her Profile">&#9829;</button>
       <button class="icon-btn" onclick="toggleSettings()" id="btnSettings" title="Settings">&#9881;</button>
     </div>
+  </div>
+
+
+  <div class="profile-switcher" id="profileSwitcher" style="display:none;">
+    <select id="profileSelect" onchange="switchProfile()"></select>
+    <button class="switcher-btn" onclick="addNewProfile()" title="Add new girl">+</button>
+    <button class="switcher-btn danger" onclick="deleteCurrentProfile()" title="Delete this profile">&times;</button>
   </div>
 
   <div class="panel" id="settingsPanel">
@@ -237,13 +260,17 @@ let messages = [];
 let summary = '';
 let herProfile = null;
 let rawProfileInput = '';
-let isAiBusy = false;      // lock to prevent parallel API calls
-let isCompressing = false;  // lock for background compression
-let isExtracting = false;   // lock for background fact extraction
+let isAiBusy = false;
+let isCompressing = false;
+let isExtracting = false;
+
+// Multi-profile state
+let profiles = {};       // { id: { name, messages, summary, herProfile, rawProfileInput } }
+let activeProfileId = null;
 
 const MAX_RECENT = 8;
 const SUMMARY_TRIGGER = 12;
-const MIN_MSG_FOR_EXTRACTION = 15; // skip fact extraction for short msgs
+const MIN_MSG_FOR_EXTRACTION = 15;
 
 const PROVIDERS = {
   openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
@@ -377,6 +404,19 @@ async function analyzeProfile() {
     }
 
     herProfile = profile;
+    // Register in multi-profile system
+    if (!activeProfileId) {
+      activeProfileId = 'p_' + Date.now();
+    }
+    profiles[activeProfileId] = {
+      name: profile.name || 'Her',
+      messages: messages,
+      summary: summary,
+      herProfile: herProfile,
+      rawProfileInput: rawProfileInput
+    };
+    saveState();
+    renderSwitcher();
     document.getElementById('obLoading').style.display = 'none';
     document.getElementById('btnAnalyze').disabled = false;
 
@@ -542,7 +582,7 @@ function renderChat() {
     el.appendChild(sys);
   }
   const name = herProfile?.name || 'Her';
-  messages.forEach(m => {
+  messages.forEach((m, idx) => {
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
     const textNode = document.createElement('span');
@@ -552,6 +592,12 @@ function renderChat() {
     timeDiv.className = 'msg-time';
     timeDiv.textContent = (m.role === 'her' ? name : 'You') + ' · ' + m.time;
     div.appendChild(timeDiv);
+    // Long-press to delete
+    let holdTimer;
+    div.addEventListener('contextmenu', e => { e.preventDefault(); deleteMessage(idx); });
+    div.addEventListener('touchstart', () => { holdTimer = setTimeout(() => deleteMessage(idx), 600); }, {passive:true});
+    div.addEventListener('touchend', () => clearTimeout(holdTimer));
+    div.addEventListener('touchmove', () => clearTimeout(holdTimer));
     el.appendChild(div);
   });
   el.scrollTop = el.scrollHeight;
@@ -564,7 +610,7 @@ async function extractNewFacts(msgText) {
   try {
     const knownFacts = (herProfile.key_facts || []).join('; ');
     const resp = await callAI([
-      { role: 'system', content: 'Extract any NEW personal facts or emotional signals from this message that are NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Extract: concrete facts (names, places, preferences, events), emotional signals (what excites her, what bothers her, what she values), things useful as callbacks later (inside jokes, shared moments, unique details). Be selective but catch anything strategically useful.' },
+      { role: 'system', content: 'Extract NEW strategic intel from this message that is NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Extract: concrete facts (names, people, places, preferences, events, schedule), emotional signals (what excites her, triggers her, bothers her), relationship intel (mentions of exes, other guys, relationship views, dealbreakers), callback material (inside jokes forming, unique phrases she uses, shared moments), vulnerability markers (fears, insecurities, dreams she shares — handle with care but remember). Be selective but catch anything that gives strategic advantage.' },
       { role: 'user', content: 'Known facts: ' + knownFacts + '\n\nNew message from ' + (herProfile.name || 'Her') + ': "' + msgText + '"' }
     ], 150);
     const parsed = parseJSON(resp);
@@ -592,7 +638,7 @@ async function compressHistory() {
   const prev = summary ? 'Previous summary: ' + summary + '\n\n' : '';
   try {
     const resp = await callAI([
-      { role: 'system', content: 'Compress this dating conversation into a strategic summary. Focus on: conversation flow, emotional tone shifts, plans/commitments, unresolved topics, inside jokes forming, who was chasing whom, any tests she threw, flirty moments, tension points. Max 100 words. Do NOT repeat personal facts (stored separately). Prioritize things useful for future callbacks and maintaining frame.' },
+      { role: 'system', content: 'Compress this dating conversation into a strategic intelligence brief. Focus on: emotional arc (what highs/lows happened), power dynamic shifts (who chased, who pulled back), tests she ran and whether he passed, inside jokes forming, flirty moments and escalation points, open loops left dangling, plans or future projections made, any mistakes he made (over-investing, being too available, killing tension). Max 120 words. Do NOT repeat personal facts. Prioritize: callbacks he can reference, frame to maintain, and momentum to build on.' },
       { role: 'user', content: prev + 'New messages to compress:\n' + convo }
     ], 150);
     if (resp && resp !== 'No response') {
@@ -638,6 +684,43 @@ function buildContext() {
     if (hisChars > herChars * 1.4) ctx += 'He is investing MORE than her — pull back slightly.\n';
     else if (herChars > hisChars * 1.4) ctx += 'She is investing more — good position, maintain light scarcity.\n';
     else ctx += 'Balanced investment.\n';
+  }
+
+  // Conversation stage detection
+  const totalMsgs = messages.length + (summary ? 10 : 0); // estimate compressed msgs
+  let stage = 'early';
+  if (totalMsgs > 30) stage = 'comfort';
+  else if (totalMsgs > 15) stage = 'building';
+  const lastHerIdx = messages.map((m,i) => m.role === 'her' ? i : -1).filter(i => i >= 0);
+  const lastHisIdx = messages.map((m,i) => m.role === 'you' ? i : -1).filter(i => i >= 0);
+  ctx += '[Stage]: ' + stage + ' game\n';
+
+  // Double-text detection
+  if (messages.length >= 2) {
+    const last = messages[messages.length - 1];
+    const prev = messages[messages.length - 2];
+    if (last.role === 'you' && prev.role === 'you') {
+      ctx += '[WARNING]: He already double-texted. DO NOT suggest another message unless she replies. If she ghosted, suggest patience or a pattern-interrupt after 24-48hrs.\n';
+    }
+  }
+
+  // Response energy tracking
+  if (messages.length >= 6) {
+    const recent4 = messages.slice(-4);
+    const herRecent = recent4.filter(m => m.role === 'her');
+    const hisRecent = recent4.filter(m => m.role === 'you');
+    const herAvgLen = herRecent.length ? herRecent.reduce((a,m) => a + m.text.length, 0) / herRecent.length : 0;
+    const hisAvgLen = hisRecent.length ? hisRecent.reduce((a,m) => a + m.text.length, 0) / hisRecent.length : 0;
+    if (herRecent.length && herAvgLen < 20) ctx += '[Alert]: Her messages are getting SHORT — she may be losing interest or busy. Change energy.\n';
+    if (herRecent.length && herAvgLen > hisAvgLen * 1.5) ctx += '[Signal]: She is writing MORE than him — high interest. Maintain slight scarcity.\n';
+  }
+
+  // Date-ready detection
+  if (stage !== 'early' && messages.length >= 8) {
+    const recentText = messages.slice(-6).map(m => m.text.toLowerCase()).join(' ');
+    const dateSignals = ['meet', 'hang', 'coffee', 'dinner', 'drink', 'plans', 'free', 'weekend', 'tomorrow', 'tonight', 'come over', 'see you', 'let\'s go', 'fun to', 'we should', 'miss you', 'wish you were'];
+    const hits = dateSignals.filter(s => recentText.includes(s));
+    if (hits.length >= 2) ctx += '[OPPORTUNITY]: Date signals detected (' + hits.join(', ') + '). Consider suggesting a meetup — timing is good.\n';
   }
 
   ctx += '[Recent messages]:\n';
@@ -733,17 +816,37 @@ function buildSystemPrompt(task) {
     }
   }
 
+  base += '\n\n=== ADVANCED PSYCHOLOGICAL TACTICS ===';
+  base += '\n11. SCARCITY PRINCIPLE — be slightly less available than she expects. End conversations at the HIGH point, not when they fizzle. Leave her wanting more.';
+  base += '\n12. ANCHORING — plant high-value identity markers naturally. Mention passions, goals, adventures in passing — never brag, let her discover.';
+  base += '\n13. SOCIAL PROOF HINTS — casually mention social life ("was at this party", "friend was telling me") without being obvious. She should sense he has options.';
+  base += '\n14. PATTERN INTERRUPT — when conversation gets predictable (question-answer-question), break the pattern with something unexpected: a bold statement, a voice note suggestion, a random observation about her.';
+  base += '\n15. EMOTIONAL LABELING — name what she is feeling before she does. "sounds like that really got to you" or "you seem excited about this" — creates deep connection instantly.';
+  base += '\n16. YES-LADDER — get small agreements ("right?", "you know what I mean") that build compliance and connection.';
+  base += '\n17. OPEN LOOPS — leave threads unfinished. "I have a theory about you... but I will tell you later." She WILL come back for it.';
+  base += '\n18. MIRRORING+ — match her energy and language patterns but add 10% more confidence and 10% less investment.';
+  base += '\n19. THE TAKEAWAY — occasionally pretend to disqualify yourself playfully ("we would never work, you are way too [positive trait] for me"). Reverse psychology that creates chase.';
+  base += '\n20. TIMING POWER — suggest response timing when relevant. After a great exchange, waiting 15-30 min builds anticipation. After she opens up emotionally, reply quicker to reward vulnerability.';
+
+  base += '\n\n=== CONVERSATION STAGE STRATEGY ===';
+  base += '\n- EARLY GAME (first ~15 msgs): Focus on standing out, being different from every other guy. Avoid interview mode. Use bold humor, callbacks to her profile, show personality fast. Do NOT get deep yet.';
+  base += '\n- BUILDING (15-30 msgs): Start creating inside jokes, go slightly deeper, begin future projection ("we should..."). Build an "us vs the world" dynamic. Start light flirting.';
+  base += '\n- COMFORT (30+ msgs): She trusts you now. Escalate: more direct flirting, suggest meeting, create real plans. Mix emotional depth with playful tension. Do not let it stagnate into pen-pal territory.';
+
   base += '\n\n=== CONVERSATION READ ===';
-  base += '\nBefore suggesting, analyze: Who is investing more? Is the energy rising or falling? What is the emotional temperature? Adjust suggestions to optimize momentum.';
+  base += '\nBefore suggesting, analyze: Who is investing more? Is the energy rising or falling? What is the emotional temperature? What stage are we in? Adjust suggestions to optimize momentum.';
   base += '\n- If she is investing more than him: maintain slight scarcity, do not over-match';
   base += '\n- If he is investing more: pull back, shorter reply, change topic, or end with something that makes her want to continue';
   base += '\n- If energy is flat: inject an emotional spike (bold tease, unexpected topic, playful challenge)';
   base += '\n- If she just opened up emotionally: meet her there briefly, then lighten the mood. Do not camp in heavy territory.';
+  base += '\n- If she is testing (short replies, delayed, provocative statements): PASS THE TEST. Do not get defensive or over-explain. Agree and amplify, or ignore and redirect.';
+  base += '\n- If conversation is dying: use a pattern interrupt or open loop, never a boring "wyd" or "how was your day"';
 
   if (task === 'suggest') {
     base += '\n\n=== TASK: SUGGEST 3 REPLIES ===';
     base += '\nGive 3 strategically different options. Each should be something a confident, high-value guy would actually text. Format EXACTLY:';
     base += '\nOPTION 1 (Bold):\nmessage\n\nOPTION 2 (Smooth):\nmessage\n\nOPTION 3 (Intriguing):\nmessage';
+    base += '\n\nAfter all 3 options, add:\nTIMING: [when to send — immediately, wait 10min, wait 1hr, etc. and WHY]';
     base += '\n\nRules:';
     base += '\n- NEVER start with "Hey" or "Haha" or just answer her question flatly';
     base += '\n- At least one option should include a callback to something she mentioned before';
@@ -751,6 +854,10 @@ function buildSystemPrompt(task) {
     base += '\n- At least one should have push-pull (warmth + challenge in the same message)';
     base += '\n- Keep them natural — they should sound like HIM, not a pickup artist';
     base += '\n- Match her message length minus about 10%';
+    base += '\n- If she is TESTING you (being cold, provocative, mentioning other guys, late replies) — your suggestions should PASS the test. Never get defensive. Options: agree & amplify, playfully ignore, flip the frame.';
+    base += '\n- If the context says OPPORTUNITY for a date — at least one option should smoothly move toward meeting up';
+    base += '\n- If WARNING about double-text — suggest waiting instead, or a high-value pattern interrupt for later';
+    base += '\n- Use open loops and future projection when conversation needs energy';
   } else if (task === 'rephrase') {
     base += '\n\n=== TASK: REPHRASE HIS DRAFT ===';
     base += '\nHe wrote something — make it land better. Keep his intent but upgrade the delivery. Format EXACTLY:';
@@ -764,14 +871,16 @@ function buildSystemPrompt(task) {
     base += '\n- If his draft is too long, tighten it. Less is more.';
   } else if (task === 'redflags') {
     base += '\n\n=== TASK: RED FLAG ANALYSIS ===';
-    base += '\nAnalyze the conversation for manipulation, power dynamics, and attraction signals. Think like a strategist, not a therapist.';
-    base += '\nFormat each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description.';
-    base += '\nAlso look for:';
-    base += '\n- Signs she is testing him (compliance tests, jealousy plays, response time games)';
-    base += '\n- Signs of genuine interest vs. just being polite';
-    base += '\n- Power balance — who is chasing whom';
-    base += '\n- Emotional investment level from her side';
-    base += '\nEnd with "OVERALL:" followed by strategic assessment and what to do next.';
+    base += '\nAnalyze the conversation like a dating strategist reading every subtext. Format each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description.';
+    base += '\nAnalyze ALL of these:';
+    base += '\n- TESTS: Is she testing him? (compliance tests, jealousy plays, response time games, "my ex..." mentions, hot/cold behavior, deliberately provocative statements). Did he pass or fail?';
+    base += '\n- INTEREST LEVEL: Real interest vs. just being polite. Look for: question-asking from her, emoji escalation, length of responses, personal details shared, response speed patterns';
+    base += '\n- POWER BALANCE: Who is chasing whom? Who texts first? Who writes more? Who suggests plans?';
+    base += '\n- INVESTMENT: Is she emotionally investing (sharing feelings, being vulnerable, asking about his life)?';
+    base += '\n- ATTRACTION SIGNALS: Playful teasing from her, future references, personal questions, "we" language, laugh reactions';
+    base += '\n- WARNING SIGNS: Breadcrumbing (keeps him around but never commits), orbiting, using him for validation, mentioning other guys to create jealousy';
+    base += '\n- HIS MISTAKES: Did he over-invest, double-text, get too available, miss a tease opportunity, kill the vibe, get friendzoned?';
+    base += '\nEnd with "OVERALL:" — strategic assessment of where he stands (she is into him / warming up / losing interest / just being polite / testing him) and exactly what to do next.';
   }
 
   return base;
@@ -927,6 +1036,11 @@ function showSuggestions(text, isRewrite) {
     labelDiv.className = 'label';
     labelDiv.textContent = item.label;
     div.appendChild(labelDiv);
+    if (item.isTiming) {
+      div.style.background = 'var(--surface2)';
+      div.style.borderColor = 'var(--accent-light)';
+      div.style.cursor = 'default';
+    }
 
     const textDiv = document.createElement('div');
     textDiv.textContent = item.text;
@@ -990,38 +1104,76 @@ function showError(msg) {
 // ==================== PERSISTENCE ====================
 function saveState() {
   try {
-    localStorage.setItem('rizz_v2', JSON.stringify({
-      messages: messages,
-      summary: summary,
-      herProfile: herProfile,
-      rawProfileInput: rawProfileInput,
+    // Save current profile data back to profiles object
+    if (activeProfileId && profiles[activeProfileId]) {
+      profiles[activeProfileId].messages = messages;
+      profiles[activeProfileId].summary = summary;
+      profiles[activeProfileId].herProfile = herProfile;
+      profiles[activeProfileId].rawProfileInput = rawProfileInput;
+    }
+    localStorage.setItem('rizz_v3', JSON.stringify({
+      profiles: profiles,
+      activeProfileId: activeProfileId,
       provider: document.getElementById('provider').value,
       apiKey: document.getElementById('apiKey').value,
       model: document.getElementById('modelName').value,
       customUrl: document.getElementById('customUrl').value
     }));
   } catch(e) {
-    // localStorage might be full or unavailable
     console.warn('Failed to save state:', e);
   }
 }
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('rizz_v2');
-    if (!raw) return;
-    const s = JSON.parse(raw);
-    messages = Array.isArray(s.messages) ? s.messages : [];
-    summary = typeof s.summary === 'string' ? s.summary : '';
-    herProfile = s.herProfile && typeof s.herProfile === 'object' ? s.herProfile : null;
-    rawProfileInput = typeof s.rawProfileInput === 'string' ? s.rawProfileInput : '';
-    if (s.provider) document.getElementById('provider').value = s.provider;
-    if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
-    if (s.model) document.getElementById('modelName').value = s.model;
-    if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
+    // Try v3 (multi-profile) first
+    const raw = localStorage.getItem('rizz_v3');
+    if (raw) {
+      const s = JSON.parse(raw);
+      profiles = s.profiles && typeof s.profiles === 'object' ? s.profiles : {};
+      activeProfileId = s.activeProfileId || null;
+      if (s.provider) document.getElementById('provider').value = s.provider;
+      if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
+      if (s.model) document.getElementById('modelName').value = s.model;
+      if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
+      // Load active profile into working state
+      if (activeProfileId && profiles[activeProfileId]) {
+        const p = profiles[activeProfileId];
+        messages = Array.isArray(p.messages) ? p.messages : [];
+        summary = typeof p.summary === 'string' ? p.summary : '';
+        herProfile = p.herProfile && typeof p.herProfile === 'object' ? p.herProfile : null;
+        rawProfileInput = typeof p.rawProfileInput === 'string' ? p.rawProfileInput : '';
+      }
+      renderSwitcher();
+      return;
+    }
+    // Migrate from v2 (single profile)
+    const rawV2 = localStorage.getItem('rizz_v2');
+    if (rawV2) {
+      const s = JSON.parse(rawV2);
+      messages = Array.isArray(s.messages) ? s.messages : [];
+      summary = typeof s.summary === 'string' ? s.summary : '';
+      herProfile = s.herProfile && typeof s.herProfile === 'object' ? s.herProfile : null;
+      rawProfileInput = typeof s.rawProfileInput === 'string' ? s.rawProfileInput : '';
+      if (s.provider) document.getElementById('provider').value = s.provider;
+      if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
+      if (s.model) document.getElementById('modelName').value = s.model;
+      if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
+      // Migrate to v3
+      if (herProfile) {
+        const id = 'p_' + Date.now();
+        profiles[id] = { name: herProfile.name || 'Her', messages, summary, herProfile, rawProfileInput };
+        activeProfileId = id;
+      }
+      localStorage.removeItem('rizz_v2');
+      saveState();
+      renderSwitcher();
+      return;
+    }
   } catch(e) {
     console.warn('Failed to load state:', e);
   }
+  renderSwitcher();
 }
 
 function clearChat() {
@@ -1035,13 +1187,100 @@ function clearChat() {
 }
 
 function resetAll() {
-  if (!confirm('Reset EVERYTHING including her profile?')) return;
+  if (!confirm('Reset EVERYTHING including all profiles?')) return;
   messages = [];
   summary = '';
   herProfile = null;
   rawProfileInput = '';
+  profiles = {};
+  activeProfileId = null;
+  localStorage.removeItem('rizz_v3');
   localStorage.removeItem('rizz_v2');
   location.reload();
+}
+
+// ==================== MULTI-PROFILE ====================
+function renderSwitcher() {
+  const switcher = document.getElementById('profileSwitcher');
+  const select = document.getElementById('profileSelect');
+  const ids = Object.keys(profiles);
+  if (ids.length === 0) {
+    switcher.style.display = 'none';
+    return;
+  }
+  switcher.style.display = 'flex';
+  select.innerHTML = '';
+  ids.forEach(id => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = profiles[id].name || 'Unknown';
+    if (id === activeProfileId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function switchProfile() {
+  const select = document.getElementById('profileSelect');
+  const newId = select.value;
+  if (newId === activeProfileId) return;
+  // Save current before switching
+  saveState();
+  // Load new profile
+  activeProfileId = newId;
+  const p = profiles[newId];
+  messages = Array.isArray(p.messages) ? p.messages : [];
+  summary = typeof p.summary === 'string' ? p.summary : '';
+  herProfile = p.herProfile && typeof p.herProfile === 'object' ? p.herProfile : null;
+  rawProfileInput = typeof p.rawProfileInput === 'string' ? p.rawProfileInput : '';
+  saveState();
+  renderChat();
+  renderProfileCard();
+  document.getElementById('aiPanel').className = 'ai-panel';
+  toast('Switched to ' + (herProfile?.name || 'Unknown'));
+}
+
+function addNewProfile() {
+  // Save current first
+  if (activeProfileId) saveState();
+  // Reset working state
+  messages = [];
+  summary = '';
+  herProfile = null;
+  rawProfileInput = '';
+  activeProfileId = null;
+  renderChat();
+  renderProfileCard();
+  document.getElementById('aiPanel').className = 'ai-panel';
+  // Open onboarding
+  openOnboarding();
+}
+
+function deleteCurrentProfile() {
+  if (!activeProfileId) return;
+  const name = profiles[activeProfileId]?.name || 'this profile';
+  if (!confirm('Delete ' + name + ' and all her conversation history?')) return;
+  delete profiles[activeProfileId];
+  const ids = Object.keys(profiles);
+  if (ids.length > 0) {
+    activeProfileId = ids[0];
+    const p = profiles[activeProfileId];
+    messages = Array.isArray(p.messages) ? p.messages : [];
+    summary = typeof p.summary === 'string' ? p.summary : '';
+    herProfile = p.herProfile && typeof p.herProfile === 'object' ? p.herProfile : null;
+    rawProfileInput = typeof p.rawProfileInput === 'string' ? p.rawProfileInput : '';
+  } else {
+    activeProfileId = null;
+    messages = [];
+    summary = '';
+    herProfile = null;
+    rawProfileInput = '';
+  }
+  saveState();
+  renderSwitcher();
+  renderChat();
+  renderProfileCard();
+  document.getElementById('aiPanel').className = 'ai-panel';
+  toast('Deleted ' + name);
 }
 
 // ==================== UTILITIES ====================
@@ -1087,8 +1326,13 @@ function parseSuggestions(text) {
   const lines = text.split('\n');
   let current = null;
   const items = [];
+  let timingAdvice = '';
   lines.forEach(function(line) {
-    if (line.match(/^(OPTION \d|SMOOTH|PLAYFUL|DIRECT|BOLD|INTRIGUING|1\.|2\.|3\.)[:\s]*\(?/i)) {
+    if (line.match(/^TIMING[:\s]/i)) {
+      if (current && current.text) items.push(current);
+      current = null;
+      timingAdvice = line.replace(/^TIMING[:\s]*/i, '').trim();
+    } else if (line.match(/^(OPTION \d|SMOOTH|PLAYFUL|DIRECT|BOLD|INTRIGUING|1\.|2\.|3\.)[:\s]*\(?/i)) {
       if (current && current.text) items.push(current);
       current = { label: line.replace(/[:\s]*$/, '').trim(), text: '' };
     } else if (current && line.trim()) {
@@ -1097,6 +1341,8 @@ function parseSuggestions(text) {
   });
   if (current && current.text) items.push(current);
   if (!items.length) items.push({ label: 'Suggestion', text: text.trim() });
+  // Append timing advice as a special item
+  if (timingAdvice) items.push({ label: '⏰ Timing', text: timingAdvice, isTiming: true });
   return items;
 }
 
@@ -1144,6 +1390,31 @@ function toast(msg) {
   t.className = 'toast show';
   clearTimeout(toast._timer);
   toast._timer = setTimeout(function() { t.className = 'toast'; }, 2500);
+}
+
+// ==================== DARK MODE ====================
+function toggleDarkMode() {
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('rizz_dark', isDark ? '1' : '0');
+  document.getElementById('btnDark').classList.toggle('active', isDark);
+}
+// Auto-load dark mode preference
+(function() {
+  if (localStorage.getItem('rizz_dark') === '1') {
+    document.documentElement.classList.add('dark');
+    setTimeout(() => document.getElementById('btnDark')?.classList.add('active'), 0);
+  }
+})();
+
+function deleteMessage(idx) {
+  if (idx < 0 || idx >= messages.length) return;
+  const m = messages[idx];
+  if (!confirm('Delete this message?')) return;
+  messages.splice(idx, 1);
+  saveState();
+  renderChat();
+  toast('Message deleted');
 }
 </script>
 </body>
