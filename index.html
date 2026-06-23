@@ -925,11 +925,8 @@ async function callAI(msgs, maxTokens) {
 
   const bodyObj = { model: model, messages: apiMsgs };
   if (provider === 'openai') {
-    // GPT-5.5, o1, o3 etc are reasoning models — they use tokens for thinking PLUS output
-    // Need ~4x budget so there's room for actual output after reasoning
-    const isReasoning = /^(o[0-9]|gpt-5)/.test(model);
-    bodyObj.max_completion_tokens = isReasoning ? Math.max(maxTokens * 5, 4000) : maxTokens;
-    // No temperature — reasoning models reject non-default values
+    // Don't limit OpenAI tokens — let the model use what it needs
+    // Reasoning models (gpt-5.x, o-series) need room for thinking + output
   } else {
     bodyObj.max_tokens = maxTokens;
     bodyObj.temperature = 0.75;
