@@ -1000,7 +1000,7 @@ async function callAI(msgs, maxTokens) {
     resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: model, messages: msgs, max_tokens: maxTokens, temperature: 0.75 })
+      body: JSON.stringify({ model: model, messages: msgs, max_completion_tokens: maxTokens, temperature: 0.75 })
     });
   } catch(e) {
     throw new Error('Network error — check your connection and API URL');
