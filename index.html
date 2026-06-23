@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rizz Assist</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f5f5f8;--surface:#fff;--surface2:#f0eeff;--accent:#6c5ce7;--accent-light:#a29bfe;
+  --green:#00b894;--green-bg:#e6f9f3;--red:#e74c3c;--red-bg:#fef0ef;--yellow:#f39c12;--yellow-bg:#fef8ec;
+  --text:#1a1a2e;--text2:#555;--muted:#999;--border:#e8e8ee;--radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.app{max-width:480px;margin:0 auto;padding:12px;min-height:100vh;display:flex;flex-direction:column;}
+
+.header{background:var(--surface);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:10px;border:1px solid var(--border);}
+.header-icon{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:600;flex-shrink:0;}
+.header h1{font-size:16px;font-weight:600;}
+.header p{font-size:11px;color:var(--muted);margin-top:1px;}
+.header-btns{margin-left:auto;display:flex;gap:6px;}
+.icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);transition:all .2s;}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+.icon-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:none;animation:slideDown .2s ease;}
+.panel.show{display:block;}
+.panel-title{font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;}
+.field{margin-bottom:8px;}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;}
+.field input,.field select,.field textarea{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;resize:none;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
+.field input::placeholder,.field textarea::placeholder{color:#bbb;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+.profile-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;}
+.profile-header{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s;}
+.profile-header:hover{background:var(--bg);}
+.profile-avatar{width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;color:var(--accent);flex-shrink:0;}
+.profile-header .name{font-size:14px;font-weight:500;}
+.profile-header .style-badge{font-size:10px;padding:3px 8px;border-radius:12px;background:var(--surface2);color:var(--accent);font-weight:500;margin-left:auto;}
+.profile-body{padding:0 14px 12px;display:none;border-top:1px solid var(--border);padding-top:10px;}
+.profile-body.show{display:block;}
+.trait-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;}
+.trait-label{color:var(--muted);min-width:80px;}
+.trait-value{color:var(--text);font-weight:500;}
+.trait-bar{flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;max-width:80px;}
+.trait-fill{height:100%;border-radius:2px;background:var(--accent);}
+.profile-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.tag{font-size:10px;padding:3px 8px;border-radius:10px;background:var(--bg);color:var(--text2);border:1px solid var(--border);}
+
+.chat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);flex:1;display:flex;flex-direction:column;min-height:0;margin-bottom:10px;}
+.chat-history{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:160px;max-height:38vh;background:var(--bg);border-radius:var(--radius) var(--radius) 0 0;}
+.msg{max-width:82%;padding:10px 14px;font-size:13px;line-height:1.5;word-wrap:break-word;}
+.msg.her{align-self:flex-start;background:var(--surface);border-radius:16px 16px 16px 4px;border:1px solid var(--border);}
+.msg.you{align-self:flex-end;background:var(--accent);color:#fff;border-radius:16px 16px 4px 16px;}
+.msg.system{align-self:center;background:var(--surface2);color:var(--accent);font-size:11px;padding:5px 12px;border-radius:20px;}
+.msg-time{font-size:10px;margin-top:3px;}
+.msg.her .msg-time{color:var(--muted);}
+.msg.you .msg-time{color:rgba(255,255,255,.55);}
+
+.input-area{padding:10px 12px;border-top:1px solid var(--border);}
+.sender-toggle{display:flex;gap:6px;margin-bottom:8px;}
+.sender-btn{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit;}
+.sender-btn.active-her{background:var(--surface2);color:var(--accent);border-color:var(--accent-light);}
+.sender-btn.active-you{background:var(--accent);color:#fff;border-color:var(--accent);}
+.input-row{display:flex;gap:8px;align-items:flex-end;}
+.input-row textarea{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:10px;font-size:13px;resize:none;font-family:inherit;outline:none;min-height:42px;max-height:110px;line-height:1.5;}
+.input-row textarea:focus{border-color:var(--accent);}
+.input-row textarea::placeholder{color:#bbb;}
+.send-btn{width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:#fff;font-size:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit;}
+.send-btn:hover{background:#5b4bd6;transform:scale(1.05);}
+
+.actions{display:flex;gap:6px;margin-top:8px;}
+.action-btn{flex:1;padding:9px 6px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;text-align:center;font-family:inherit;}
+.action-btn:hover:not(:disabled){transform:translateY(-1px);}
+.action-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.action-btn.suggest{color:var(--green);border-color:#c3ede2;}
+.action-btn.suggest:hover:not(:disabled){background:var(--green-bg);}
+.action-btn.redflag{color:var(--red);border-color:#f5c6c0;}
+.action-btn.redflag:hover:not(:disabled){background:var(--red-bg);}
+.action-btn.rewrite{color:var(--yellow);border-color:#f5dfa8;}
+.action-btn.rewrite:hover:not(:disabled){background:var(--yellow-bg);}
+
+.ai-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:none;animation:slideUp .25s ease;}
+.ai-panel.show{display:block;}
+.ai-panel-header{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;color:var(--accent);}
+.ai-suggestion{background:var(--bg);border-radius:10px;padding:11px 13px;margin-bottom:6px;font-size:13px;line-height:1.5;cursor:pointer;border:1px solid var(--border);transition:all .2s;}
+.ai-suggestion:hover{border-color:var(--accent);background:var(--surface2);}
+.ai-suggestion:last-child{margin-bottom:0;}
+.ai-suggestion .label{font-size:10px;color:var(--accent);font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;}
+.ai-suggestion .copy-btn{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:500;border:none;cursor:pointer;transition:all .15s;}
+.ai-suggestion .copy-btn:hover{background:#5b4bd6;}
+.ai-suggestion .copy-btn.copied{background:var(--green);}
+.red-flag-item{padding:9px 12px;margin-bottom:5px;border-radius:8px;font-size:13px;line-height:1.5;border-radius:8px 8px 8px 8px;}
+.red-flag-item.warn{background:var(--red-bg);border-left:3px solid var(--red);color:#8b2020;border-radius:0 8px 8px 0;}
+.red-flag-item.ok{background:var(--green-bg);border-left:3px solid var(--green);color:#0a6e5a;border-radius:0 8px 8px 0;}
+.red-flag-item.neutral{background:var(--bg);color:var(--text2);}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--surface);border-radius:16px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;position:relative;}
+.modal h2{font-size:18px;font-weight:600;margin-bottom:4px;}
+.modal .subtitle{font-size:13px;color:var(--muted);margin-bottom:16px;}
+.modal textarea{min-height:120px;}
+.modal .btn-row{display:flex;gap:8px;margin-top:16px;}
+.modal-close{position:absolute;top:12px;right:14px;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted);transition:all .2s;}
+.modal-close:hover{border-color:var(--red);color:var(--red);}
+.btn{padding:10px 20px;border-radius:10px;border:none;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover:not(:disabled){background:#5b4bd6;}
+.btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{background:var(--surface2);}
+.btn-full{width:100%;}
+
+.loading{text-align:center;padding:20px;color:var(--muted);font-size:13px;}
+.loading .dots::after{content:'';animation:dots 1.4s infinite;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 22px;border-radius:24px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+.clear-btn{padding:7px 14px;border-radius:8px;border:1px solid var(--red);background:transparent;color:var(--red);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s;}
+.clear-btn:hover{background:var(--red-bg);}
+.custom-url-row{display:none;}.custom-url-row.show{display:block;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+@keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}}
+@keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="header-icon">R</div>
+    <div>
+      <h1>Rizz Assist</h1>
+      <p id="headerSub">Your dating wingman AI</p>
+    </div>
+    <div class="header-btns">
+      <button class="icon-btn" onclick="handleProfileBtn()" id="btnProfile" title="Her Profile">&#9829;</button>
+      <button class="icon-btn" onclick="toggleSettings()" id="btnSettings" title="Settings">&#9881;</button>
+    </div>
+  </div>
+
+  <div class="panel" id="settingsPanel">
+    <div class="panel-title">API Settings</div>
+    <div class="grid2">
+      <div class="field"><label>Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">Custom URL</option></select></div>
+      <div class="field"><label>Model</label><input type="text" id="modelName" placeholder="gpt-4o-mini"></div>
+    </div>
+    <div class="field"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
+    <div class="custom-url-row" id="customUrlRow"><div class="field"><label>Base URL</label><input type="text" id="customUrl" placeholder="https://api.example.com/v1"></div></div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="clear-btn" onclick="clearChat()">Clear chat</button>
+      <button class="clear-btn" onclick="resetAll()" style="border-color:var(--muted);color:var(--muted);">Reset everything</button>
+    </div>
+  </div>
+
+  <div class="profile-card" id="profileCard" style="display:none;">
+    <div class="profile-header" onclick="toggleProfileBody()">
+      <div class="profile-avatar" id="profileAvatar">?</div>
+      <div style="min-width:0;flex:1;">
+        <div class="name" id="profileName">Her</div>
+        <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="profileOneLiner">Tap to see profile</div>
+      </div>
+      <div class="style-badge" id="styleBadge">analyzing...</div>
+    </div>
+    <div class="profile-body" id="profileBody">
+      <div id="profileTraits"></div>
+      <div id="profileFacts"></div>
+      <div class="profile-tags" id="profileTags"></div>
+      <button class="btn btn-secondary btn-full" style="margin-top:10px;font-size:12px;" onclick="openOnboarding()">Edit profile</button>
+    </div>
+  </div>
+
+  <div class="chat-card">
+    <div class="chat-history" id="chatHistory"></div>
+    <div class="input-area">
+      <div class="sender-toggle">
+        <button class="sender-btn active-her" id="btnHer" onclick="setSender('her')">Her message</button>
+        <button class="sender-btn" id="btnYou" onclick="setSender('you')">Your message</button>
+      </div>
+      <div class="input-row">
+        <textarea id="msgInput" placeholder="Paste her message here..." rows="1"></textarea>
+        <button class="send-btn" onclick="addMessage()">&#8593;</button>
+      </div>
+      <div class="actions" id="actionBtns">
+        <button class="action-btn suggest" id="btnSuggest" onclick="getSuggestions()">&#128161; Suggest</button>
+        <button class="action-btn redflag" id="btnRedFlag" onclick="checkRedFlags()">&#127987; Red flags</button>
+        <button class="action-btn rewrite" id="btnRewrite" onclick="rewriteMessage()">&#9998; Rewrite</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-panel" id="aiPanel"></div>
+</div>
+
+<div class="modal-overlay" id="onboardingModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeOnboarding()" title="Close">&times;</button>
+    <div id="onboardStep1">
+      <h2>Tell me about her</h2>
+      <p class="subtitle">Dump everything you know — name, personality, interests, how she texts, what she's into. The more detail, the better the AI adapts.</p>
+      <div class="field"><label>Her name</label><input type="text" id="obName" placeholder="e.g. Sarah"></div>
+      <div class="field">
+        <label>Everything you know about her</label>
+        <textarea id="obDetails" placeholder="e.g. She's 23, works as a graphic designer, has a golden retriever named Bruno, loves anime and coffee, texts with lots of emojis, takes time to reply, seems shy at first but opens up with humor, likes when I'm direct but not pushy..." style="min-height:150px;"></textarea>
+      </div>
+      <div class="field">
+        <label>Paste some of her recent messages (optional but helps a lot)</label>
+        <textarea id="obMessages" placeholder="Paste a few of her actual messages so I can analyze her texting style..." style="min-height:80px;"></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-full" id="btnAnalyze" onclick="analyzeProfile()">Analyze her</button>
+      </div>
+      <div id="obLoading" style="display:none;" class="loading">Building psychological profile<span class="dots"></span></div>
+    </div>
+    <div id="onboardStep2" style="display:none;">
+      <h2>Profile ready</h2>
+      <p class="subtitle" id="obSummary"></p>
+      <div id="obProfilePreview" style="margin:12px 0;"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="backToStep1()">Back</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="confirmProfile()">Looks good, start chatting</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== STATE ====================
+let sender = 'her';
+let messages = [];
+let summary = '';
+let herProfile = null;
+let rawProfileInput = '';
+let isAiBusy = false;      // lock to prevent parallel API calls
+let isCompressing = false;  // lock for background compression
+let isExtracting = false;   // lock for background fact extraction
+
+const MAX_RECENT = 8;
+const SUMMARY_TRIGGER = 12;
+const MIN_MSG_FOR_EXTRACTION = 15; // skip fact extraction for short msgs
+
+const PROVIDERS = {
+  openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
+  deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' },
+};
+
+// ==================== INIT ====================
+window.addEventListener('DOMContentLoaded', () => {
+  loadState();
+  renderChat();
+  renderProfileCard();
+  document.getElementById('provider').addEventListener('change', onProviderChange);
+  ['apiKey','modelName','customUrl'].forEach(id =>
+    document.getElementById(id).addEventListener('change', saveState)
+  );
+  document.getElementById('msgInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addMessage(); }
+  });
+  document.getElementById('msgInput').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+  });
+  onProviderChange();
+  updateHeaderSub();
+  if (!herProfile) setTimeout(() => openOnboarding(), 300);
+});
+
+// ==================== UI CONTROLS ====================
+function toggleSettings() {
+  const el = document.getElementById('settingsPanel');
+  el.classList.toggle('show');
+  document.getElementById('btnSettings').classList.toggle('active', el.classList.contains('show'));
+}
+
+function handleProfileBtn() {
+  if (!herProfile) {
+    openOnboarding();
+    return;
+  }
+  toggleProfileBody();
+}
+
+function toggleProfileBody() {
+  const el = document.getElementById('profileBody');
+  el.classList.toggle('show');
+  document.getElementById('btnProfile').classList.toggle('active', el.classList.contains('show'));
+}
+
+function onProviderChange() {
+  const p = document.getElementById('provider').value;
+  document.getElementById('customUrlRow').className = 'custom-url-row' + (p === 'custom' ? ' show' : '');
+  if (p !== 'custom') document.getElementById('modelName').placeholder = PROVIDERS[p]?.model || 'model-name';
+  saveState();
+}
+
+function updateHeaderSub() {
+  const n = herProfile?.name;
+  document.getElementById('headerSub').textContent = n ? 'Chatting with ' + n : 'Your dating wingman AI';
+}
+
+function setActionButtonsDisabled(disabled) {
+  document.getElementById('btnSuggest').disabled = disabled;
+  document.getElementById('btnRedFlag').disabled = disabled;
+  document.getElementById('btnRewrite').disabled = disabled;
+}
+
+// ==================== ONBOARDING ====================
+function openOnboarding() {
+  document.getElementById('onboardStep1').style.display = 'block';
+  document.getElementById('onboardStep2').style.display = 'none';
+  document.getElementById('obLoading').style.display = 'none';
+  document.getElementById('btnAnalyze').disabled = false;
+  if (herProfile) {
+    document.getElementById('obName').value = herProfile.name || '';
+    document.getElementById('obDetails').value = rawProfileInput || '';
+  }
+  document.getElementById('onboardingModal').classList.add('show');
+}
+
+function closeOnboarding() {
+  document.getElementById('onboardingModal').classList.remove('show');
+}
+
+function backToStep1() {
+  document.getElementById('onboardStep1').style.display = 'block';
+  document.getElementById('onboardStep2').style.display = 'none';
+}
+
+async function analyzeProfile() {
+  const name = document.getElementById('obName').value.trim();
+  const details = document.getElementById('obDetails').value.trim();
+  const sampleMsgs = document.getElementById('obMessages').value.trim();
+  if (!name || !details) { toast('Fill in her name and details'); return; }
+
+  document.getElementById('obLoading').style.display = 'block';
+  document.getElementById('btnAnalyze').disabled = true;
+  rawProfileInput = details;
+
+  try {
+    const resp = await callAI([
+      { role: 'system', content: 'You are a dating psychology expert. Analyze the information about a person and create a structured psychological profile. Return ONLY valid JSON (no markdown, no backticks, no explanation). Use this exact structure:\n{"name":"string","summary":"1-2 sentence personality summary","traits":{"openness":0,"playfulness":0,"emotional_depth":0,"flirtiness":0,"directness":0,"humor_level":0},"communication_style":{"preferred_tone":"flirty|playful|warm|witty|chill|serious","message_length":"short|medium|long","emoji_usage":"heavy|moderate|minimal|none","response_pattern":"string","what_works":["string"],"what_to_avoid":["string"]},"interests":["string"],"key_facts":["string"],"attachment_style":"secure|anxious|avoidant|mixed","ideal_approach":"2-3 sentences"}\nAll trait values must be integers 0-10. Be accurate and insightful. Infer from details given.' },
+      { role: 'user', content: 'Her name: ' + name + '\n\nDetails about her:\n' + details + (sampleMsgs ? '\n\nSample messages from her:\n' + sampleMsgs : '') }
+    ], 800);
+
+    const profile = parseJSON(resp);
+    if (!profile) throw new Error('AI returned invalid format. Try again.');
+
+    // Validate and fill missing fields
+    profile.name = profile.name || name;
+    profile.summary = profile.summary || '';
+    profile.traits = profile.traits || {};
+    profile.communication_style = profile.communication_style || {};
+    profile.communication_style.preferred_tone = profile.communication_style.preferred_tone || 'warm';
+    profile.communication_style.message_length = profile.communication_style.message_length || 'medium';
+    profile.communication_style.emoji_usage = profile.communication_style.emoji_usage || 'moderate';
+    profile.communication_style.response_pattern = profile.communication_style.response_pattern || '';
+    profile.communication_style.what_works = Array.isArray(profile.communication_style.what_works) ? profile.communication_style.what_works : [];
+    profile.communication_style.what_to_avoid = Array.isArray(profile.communication_style.what_to_avoid) ? profile.communication_style.what_to_avoid : [];
+    profile.interests = Array.isArray(profile.interests) ? profile.interests : [];
+    profile.key_facts = Array.isArray(profile.key_facts) ? profile.key_facts : [];
+    profile.attachment_style = profile.attachment_style || 'secure';
+    profile.ideal_approach = profile.ideal_approach || '';
+
+    // Clamp traits to 0-10
+    for (const k of ['openness','playfulness','emotional_depth','flirtiness','directness','humor_level']) {
+      const v = Number(profile.traits[k]);
+      profile.traits[k] = isNaN(v) ? 5 : Math.max(0, Math.min(10, Math.round(v)));
+    }
+
+    herProfile = profile;
+    document.getElementById('obLoading').style.display = 'none';
+    document.getElementById('btnAnalyze').disabled = false;
+
+    // Show preview (escaped)
+    document.getElementById('obSummary').textContent = profile.summary;
+    const preview = document.getElementById('obProfilePreview');
+    preview.innerHTML = '';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg);border-radius:10px;padding:12px;font-size:12px;';
+    const rows = [
+      ['Preferred tone', profile.communication_style.preferred_tone],
+      ['Attachment style', profile.attachment_style],
+      ['What works', profile.communication_style.what_works.join(', ')],
+      ['Avoid', profile.communication_style.what_to_avoid.join(', ')],
+      ['Key facts', profile.key_facts.join(', ')]
+    ];
+    rows.forEach(([label, val]) => {
+      const row = document.createElement('div');
+      row.style.marginBottom = '6px';
+      const b = document.createElement('b');
+      b.textContent = label + ': ';
+      row.appendChild(b);
+      row.appendChild(document.createTextNode(val));
+      box.appendChild(row);
+    });
+    preview.appendChild(box);
+
+    document.getElementById('onboardStep1').style.display = 'none';
+    document.getElementById('onboardStep2').style.display = 'block';
+
+  } catch(e) {
+    document.getElementById('obLoading').style.display = 'none';
+    document.getElementById('btnAnalyze').disabled = false;
+    toast(e.message);
+  }
+}
+
+function confirmProfile() {
+  document.getElementById('onboardingModal').classList.remove('show');
+  saveState();
+  renderProfileCard();
+  updateHeaderSub();
+  toast('Profile saved — AI will adapt to her style');
+}
+
+// ==================== PROFILE CARD ====================
+function renderProfileCard() {
+  const card = document.getElementById('profileCard');
+  if (!herProfile) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  const p = herProfile;
+  document.getElementById('profileAvatar').textContent = (p.name || '?').charAt(0).toUpperCase();
+  document.getElementById('profileName').textContent = p.name || 'Her';
+  document.getElementById('profileOneLiner').textContent = p.summary || 'Tap to see profile';
+  document.getElementById('styleBadge').textContent = safeGet(p, 'communication_style', 'preferred_tone') || '?';
+
+  // Traits
+  const traitsEl = document.getElementById('profileTraits');
+  traitsEl.innerHTML = '';
+  const traits = p.traits || {};
+  Object.entries(traits).forEach(([k, v]) => {
+    const val = Math.max(0, Math.min(10, Number(v) || 0));
+    const row = document.createElement('div');
+    row.className = 'trait-row';
+    row.innerHTML =
+      '<span class="trait-label">' + escHtml(k.replace(/_/g, ' ')) + '</span>' +
+      '<div class="trait-bar"><div class="trait-fill" style="width:' + (val * 10) + '%"></div></div>' +
+      '<span class="trait-value">' + val + '/10</span>';
+    traitsEl.appendChild(row);
+  });
+
+  // Facts
+  const factsEl = document.getElementById('profileFacts');
+  factsEl.innerHTML = '';
+  const facts = p.key_facts || [];
+  if (facts.length) {
+    const heading = document.createElement('div');
+    heading.style.cssText = 'margin-top:8px;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:4px;';
+    heading.textContent = 'KEY FACTS';
+    factsEl.appendChild(heading);
+    facts.forEach(f => {
+      const div = document.createElement('div');
+      div.style.cssText = 'font-size:12px;color:var(--text2);padding:2px 0;';
+      div.textContent = '• ' + f;
+      factsEl.appendChild(div);
+    });
+  }
+
+  // Tags
+  const tagsEl = document.getElementById('profileTags');
+  tagsEl.innerHTML = '';
+  (p.interests || []).forEach(i => {
+    const span = document.createElement('span');
+    span.className = 'tag';
+    span.textContent = i;
+    tagsEl.appendChild(span);
+  });
+}
+
+// ==================== SENDER ====================
+function setSender(s) {
+  sender = s;
+  document.getElementById('btnHer').className = 'sender-btn' + (s === 'her' ? ' active-her' : '');
+  document.getElementById('btnYou').className = 'sender-btn' + (s === 'you' ? ' active-you' : '');
+  document.getElementById('msgInput').placeholder = s === 'her' ? 'Paste her message here...' : 'Type what you want to say...';
+}
+
+// ==================== MESSAGES ====================
+function addMessage() {
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  messages.push({ role: sender, text, time });
+  input.value = '';
+  input.style.height = 'auto';
+  renderChat();
+  saveState();
+
+  // Background tasks (non-blocking, sequential)
+  if (sender === 'her' && herProfile && text.length >= MIN_MSG_FOR_EXTRACTION) {
+    scheduleBackgroundTasks(text);
+  } else if (messages.length > SUMMARY_TRIGGER) {
+    compressHistory();
+  }
+}
+
+async function scheduleBackgroundTasks(msgText) {
+  // Extract facts first, then compress if needed — never in parallel
+  await extractNewFacts(msgText);
+  if (messages.length > SUMMARY_TRIGGER) {
+    await compressHistory();
+  }
+}
+
+function renderChat() {
+  const el = document.getElementById('chatHistory');
+  el.innerHTML = '';
+  if (summary) {
+    const sys = document.createElement('div');
+    sys.className = 'msg system';
+    sys.textContent = 'Earlier conversation summarized';
+    el.appendChild(sys);
+  }
+  const name = herProfile?.name || 'Her';
+  messages.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + m.role;
+    const textNode = document.createElement('span');
+    textNode.textContent = m.text;
+    div.appendChild(textNode);
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'msg-time';
+    timeDiv.textContent = (m.role === 'her' ? name : 'You') + ' · ' + m.time;
+    div.appendChild(timeDiv);
+    el.appendChild(div);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+
+// ==================== SMART MEMORY ====================
+async function extractNewFacts(msgText) {
+  if (!herProfile || isExtracting) return;
+  isExtracting = true;
+  try {
+    const knownFacts = (herProfile.key_facts || []).join('; ');
+    const resp = await callAI([
+      { role: 'system', content: 'Extract any NEW personal facts from this message that are NOT already known. Return ONLY valid JSON: {"new_facts":["fact1","fact2"]}. If nothing new, return {"new_facts":[]}. Only extract concrete facts (names, places, preferences, events, feelings). Be very selective.' },
+      { role: 'user', content: 'Known facts: ' + knownFacts + '\n\nNew message from ' + (herProfile.name || 'Her') + ': "' + msgText + '"' }
+    ], 150);
+    const parsed = parseJSON(resp);
+    if (parsed && Array.isArray(parsed.new_facts) && parsed.new_facts.length) {
+      if (!herProfile.key_facts) herProfile.key_facts = [];
+      parsed.new_facts.forEach(f => {
+        if (typeof f === 'string' && f.trim() && !herProfile.key_facts.includes(f.trim())) {
+          herProfile.key_facts.push(f.trim());
+        }
+      });
+      saveState();
+      renderProfileCard();
+    }
+  } catch(e) { /* silent background task */ }
+  isExtracting = false;
+}
+
+async function compressHistory() {
+  if (messages.length <= MAX_RECENT || isCompressing) return;
+  isCompressing = true;
+  const older = messages.slice(0, messages.length - MAX_RECENT);
+  const recent = messages.slice(messages.length - MAX_RECENT);
+  const name = herProfile?.name || 'Her';
+  const convo = older.map(m => (m.role === 'her' ? name : 'You') + ' (' + m.time + '): ' + m.text).join('\n');
+  const prev = summary ? 'Previous summary: ' + summary + '\n\n' : '';
+  try {
+    const resp = await callAI([
+      { role: 'system', content: 'Compress this dating conversation into a brief summary. Focus on: conversation flow, emotional tone shifts, plans/commitments, unresolved topics. Max 100 words. Do NOT include personal facts (stored separately).' },
+      { role: 'user', content: prev + 'New messages to compress:\n' + convo }
+    ], 150);
+    if (resp && resp !== 'No response') {
+      summary = resp;
+      messages = recent;
+      saveState();
+      renderChat();
+    }
+  } catch(e) { /* silent */ }
+  isCompressing = false;
+}
+
+// ==================== BUILD AI CONTEXT ====================
+function buildContext() {
+  const name = herProfile?.name || 'Her';
+  let ctx = '';
+
+  if (herProfile) {
+    const cs = herProfile.communication_style || {};
+    const facts = herProfile.key_facts || [];
+    ctx += '[' + name + "'s Profile]\n";
+    ctx += 'Style: ' + (cs.preferred_tone || 'warm') + ' | Attachment: ' + (herProfile.attachment_style || 'unknown') + '\n';
+    if (cs.what_works && cs.what_works.length) ctx += 'What works: ' + cs.what_works.join(', ') + '\n';
+    if (cs.what_to_avoid && cs.what_to_avoid.length) ctx += 'Avoid: ' + cs.what_to_avoid.join(', ') + '\n';
+    if (facts.length) ctx += 'Key facts: ' + facts.join('; ') + '\n';
+    if (herProfile.ideal_approach) ctx += 'Approach: ' + herProfile.ideal_approach + '\n';
+    ctx += '\n';
+  }
+
+  if (summary) ctx += '[Earlier conversation]: ' + summary + '\n\n';
+
+  ctx += '[Recent messages]:\n';
+  messages.forEach(m => {
+    ctx += (m.role === 'her' ? (herProfile?.name || 'Her') : 'You') + ' (' + m.time + '): ' + m.text + '\n';
+  });
+
+  return ctx;
+}
+
+function buildSystemPrompt(task) {
+  const name = herProfile?.name || 'Her';
+  const cs = herProfile?.communication_style || {};
+  const tone = cs.preferred_tone || 'natural';
+  const traits = herProfile?.traits || {};
+
+  let base = 'You are an expert dating coach. You\'re helping a guy text ' + name + '.';
+
+  if (herProfile) {
+    base += '\n\nCRITICAL — Adapt ALL suggestions to ' + name + "'s psychology:";
+    base += '\n- She responds best to: ' + tone + ' tone';
+
+    const pl = Number(traits.playfulness) || 5;
+    const fl = Number(traits.flirtiness) || 5;
+    const di = Number(traits.directness) || 5;
+    base += '\n- Playfulness: ' + pl + '/10, Flirtiness: ' + fl + '/10, Directness: ' + di + '/10';
+    base += '\n- Message length: ' + (cs.message_length || 'medium');
+    base += '\n- Emoji usage: ' + (cs.emoji_usage || 'moderate');
+
+    if (herProfile.ideal_approach) base += '\n- ' + herProfile.ideal_approach;
+
+    const facts = herProfile.key_facts || [];
+    if (facts.length) base += '\n- Remember these facts about her: ' + facts.join('; ');
+
+    if (fl >= 7) base += '\n- She likes flirty energy — lean into it, be bold';
+    else if (fl <= 3) base += "\n- She's not very flirty — keep it warm but not overtly romantic";
+
+    if (pl >= 7) base += '\n- She loves playful banter — tease lightly, use humor';
+    else if (pl <= 3) base += '\n- She prefers genuine/serious conversation — skip the jokes';
+
+    if (di >= 7) base += "\n- She appreciates directness — don't beat around the bush";
+    else if (di <= 3) base += "\n- She's indirect — match her pace, be subtle";
+
+    if (herProfile.attachment_style === 'anxious') base += '\n- She may need reassurance — be consistent and responsive';
+    if (herProfile.attachment_style === 'avoidant') base += "\n- Give her space — don't double text or push too hard";
+  }
+
+  if (task === 'suggest') {
+    base += '\n\nGive 3 reply options matched to her preferred ' + tone + ' style. Format EXACTLY:\nOPTION 1 (label):\nmessage\n\nOPTION 2 (label):\nmessage\n\nOPTION 3 (label):\nmessage\n\nKeep replies natural and matched to her energy.';
+  } else if (task === 'rephrase') {
+    base += '\n\nRephrase the user\'s draft 3 ways tuned to ' + name + '\'s style. Format EXACTLY:\nSMOOTH:\nmessage\n\nPLAYFUL:\nmessage\n\nDIRECT:\nmessage\n\nKeep the same meaning. Match her vibe.';
+  } else if (task === 'redflags') {
+    base += '\n\nAnalyze for red/green flags considering ' + name + '\'s known personality. Format each flag on its own line starting with exactly "RED FLAG:" or "GREEN FLAG:" followed by description. End with a brief overall assessment line starting with "OVERALL:".';
+  }
+
+  return base;
+}
+
+// ==================== AI ACTIONS ====================
+async function getSuggestions() {
+  if (isAiBusy) return;
+  const draft = document.getElementById('msgInput').value.trim();
+  const name = herProfile?.name || 'Her';
+
+  if (draft) {
+    lockUI('Rephrasing for ' + name + '...');
+    try {
+      const resp = await callAI([
+        { role: 'system', content: buildSystemPrompt('rephrase') },
+        { role: 'user', content: buildContext() + '\n\nI want to say this to ' + name + ': "' + draft + '"\n\nRephrase it 3 ways, tuned to her personality.' }
+      ], 500);
+      showSuggestions(resp, true);
+    } catch(e) { showError(e.message); }
+    unlockUI();
+    return;
+  }
+
+  if (!messages.length || messages[messages.length - 1].role !== 'her') {
+    toast('Add her message or type what you wanna say');
+    return;
+  }
+  lockUI('Analyzing ' + name + "'s message...");
+  try {
+    const resp = await callAI([
+      { role: 'system', content: buildSystemPrompt('suggest') },
+      { role: 'user', content: buildContext() + '\n\nSuggest 3 replies matched to her style.' }
+    ], 500);
+    showSuggestions(resp, false);
+  } catch(e) { showError(e.message); }
+  unlockUI();
+}
+
+async function checkRedFlags() {
+  if (isAiBusy) return;
+  if (!messages.length) { toast('Add some messages first'); return; }
+  lockUI('Scanning...');
+  const input = document.getElementById('msgInput').value.trim();
+  const who = input ? "the user's draft" : (messages[messages.length - 1].role === 'her' ? 'her message' : "the user's message");
+  try {
+    const resp = await callAI([
+      { role: 'system', content: buildSystemPrompt('redflags') },
+      { role: 'user', content: buildContext() + (input ? '\n\n[Draft to check]: ' + input : '') + '\n\nAnalyze ' + who + ' for red/green flags.' }
+    ], 500);
+    showRedFlags(resp);
+  } catch(e) { showError(e.message); }
+  unlockUI();
+}
+
+async function rewriteMessage() {
+  if (isAiBusy) return;
+  const input = document.getElementById('msgInput').value.trim();
+  if (!input) { toast('Type what you want to say first'); return; }
+  const name = herProfile?.name || 'Her';
+  lockUI('Polishing...');
+  try {
+    const resp = await callAI([
+      { role: 'system', content: buildSystemPrompt('rephrase') },
+      { role: 'user', content: buildContext() + '\n\nRewrite this for ' + name + ': "' + input + '"' }
+    ], 400);
+    showSuggestions(resp, true);
+  } catch(e) { showError(e.message); }
+  unlockUI();
+}
+
+function lockUI(loadingText) {
+  isAiBusy = true;
+  setActionButtonsDisabled(true);
+  showLoading(loadingText);
+}
+
+function unlockUI() {
+  isAiBusy = false;
+  setActionButtonsDisabled(false);
+}
+
+// ==================== API ====================
+async function callAI(msgs, maxTokens) {
+  const provider = document.getElementById('provider').value;
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) throw new Error('Add your API key in settings (gear icon)');
+  let url, model;
+  if (provider === 'custom') {
+    url = document.getElementById('customUrl').value.trim();
+    if (!url) throw new Error('Enter base URL in settings');
+    url = url.replace(/\/+$/, '') + '/chat/completions';
+    model = document.getElementById('modelName').value.trim() || 'default';
+  } else {
+    url = PROVIDERS[provider].url;
+    model = document.getElementById('modelName').value.trim() || PROVIDERS[provider].model;
+  }
+
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: model, messages: msgs, max_tokens: maxTokens, temperature: 0.75 })
+    });
+  } catch(e) {
+    throw new Error('Network error — check your connection and API URL');
+  }
+
+  if (!resp.ok) {
+    let errMsg = 'API error ' + resp.status;
+    try {
+      const err = await resp.json();
+      if (err.error?.message) errMsg = err.error.message;
+    } catch(e) {}
+    throw new Error(errMsg);
+  }
+
+  let data;
+  try {
+    data = await resp.json();
+  } catch(e) {
+    throw new Error('Invalid response from API');
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response from API');
+  return content;
+}
+
+// ==================== RENDER AI RESPONSES ====================
+function showLoading(text) {
+  const p = document.getElementById('aiPanel');
+  p.innerHTML = '<div class="loading">' + escHtml(text) + '<span class="dots"></span></div>';
+  p.className = 'ai-panel show';
+}
+
+function showSuggestions(text, isRewrite) {
+  const panel = document.getElementById('aiPanel');
+  panel.innerHTML = '';
+  const header = document.createElement('div');
+  header.className = 'ai-panel-header';
+  header.textContent = isRewrite ? 'Rephrased versions' : 'Reply suggestions';
+  panel.appendChild(header);
+
+  const items = parseSuggestions(text);
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'ai-suggestion';
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'label';
+    labelDiv.textContent = item.label;
+    div.appendChild(labelDiv);
+
+    const textDiv = document.createElement('div');
+    textDiv.textContent = item.text;
+    div.appendChild(textDiv);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      copyToClipboard(item.text, this);
+    });
+    div.appendChild(copyBtn);
+
+    div.addEventListener('click', function() {
+      document.getElementById('msgInput').value = item.text;
+      setSender('you');
+      toast('Loaded — edit & send');
+    });
+
+    panel.appendChild(div);
+  });
+  panel.className = 'ai-panel show';
+}
+
+function showRedFlags(text) {
+  const panel = document.getElementById('aiPanel');
+  panel.innerHTML = '';
+  const header = document.createElement('div');
+  header.className = 'ai-panel-header';
+  header.textContent = 'Flag analysis';
+  panel.appendChild(header);
+
+  text.split('\n').filter(l => l.trim()).forEach(line => {
+    const div = document.createElement('div');
+    const trimmed = line.trim();
+    // Use strict prefix matching instead of substring search
+    if (trimmed.match(/^(RED FLAG|RED:|🚩)/i)) {
+      div.className = 'red-flag-item warn';
+    } else if (trimmed.match(/^(GREEN FLAG|GREEN:|✅)/i)) {
+      div.className = 'red-flag-item ok';
+    } else {
+      div.className = 'red-flag-item neutral';
+    }
+    div.textContent = trimmed;
+    panel.appendChild(div);
+  });
+  panel.className = 'ai-panel show';
+}
+
+function showError(msg) {
+  const p = document.getElementById('aiPanel');
+  p.innerHTML = '';
+  const div = document.createElement('div');
+  div.style.cssText = 'color:var(--red);padding:12px;font-size:13px;';
+  div.textContent = '⚠ ' + msg;
+  p.appendChild(div);
+  p.className = 'ai-panel show';
+}
+
+// ==================== PERSISTENCE ====================
+function saveState() {
+  try {
+    localStorage.setItem('rizz_v2', JSON.stringify({
+      messages: messages,
+      summary: summary,
+      herProfile: herProfile,
+      rawProfileInput: rawProfileInput,
+      provider: document.getElementById('provider').value,
+      apiKey: document.getElementById('apiKey').value,
+      model: document.getElementById('modelName').value,
+      customUrl: document.getElementById('customUrl').value
+    }));
+  } catch(e) {
+    // localStorage might be full or unavailable
+    console.warn('Failed to save state:', e);
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('rizz_v2');
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    messages = Array.isArray(s.messages) ? s.messages : [];
+    summary = typeof s.summary === 'string' ? s.summary : '';
+    herProfile = s.herProfile && typeof s.herProfile === 'object' ? s.herProfile : null;
+    rawProfileInput = typeof s.rawProfileInput === 'string' ? s.rawProfileInput : '';
+    if (s.provider) document.getElementById('provider').value = s.provider;
+    if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
+    if (s.model) document.getElementById('modelName').value = s.model;
+    if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
+  } catch(e) {
+    console.warn('Failed to load state:', e);
+  }
+}
+
+function clearChat() {
+  if (!confirm('Clear all messages?')) return;
+  messages = [];
+  summary = '';
+  saveState();
+  renderChat();
+  document.getElementById('aiPanel').className = 'ai-panel';
+  toast('Chat cleared');
+}
+
+function resetAll() {
+  if (!confirm('Reset EVERYTHING including her profile?')) return;
+  messages = [];
+  summary = '';
+  herProfile = null;
+  rawProfileInput = '';
+  localStorage.removeItem('rizz_v2');
+  location.reload();
+}
+
+// ==================== UTILITIES ====================
+function escHtml(s) {
+  if (typeof s !== 'string') return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function safeGet(obj) {
+  let current = obj;
+  for (let i = 1; i < arguments.length; i++) {
+    if (current == null || typeof current !== 'object') return undefined;
+    current = current[arguments[i]];
+  }
+  return current;
+}
+
+function parseJSON(text) {
+  if (typeof text !== 'string') return null;
+  // Try direct parse first
+  try { return JSON.parse(text.trim()); } catch(e) {}
+  // Strip markdown code fences
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch(e) {}
+  }
+  // Find the outermost balanced braces
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let end = -1;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end === -1) return null;
+  try { return JSON.parse(text.slice(start, end + 1)); } catch(e) { return null; }
+}
+
+function parseSuggestions(text) {
+  const lines = text.split('\n');
+  let current = null;
+  const items = [];
+  lines.forEach(function(line) {
+    if (line.match(/^(OPTION \d|SMOOTH|PLAYFUL|DIRECT|1\.|2\.|3\.)[:\s]*\(?/i)) {
+      if (current && current.text) items.push(current);
+      current = { label: line.replace(/[:\s]*$/, '').trim(), text: '' };
+    } else if (current && line.trim()) {
+      current.text += (current.text ? '\n' : '') + line.trim();
+    }
+  });
+  if (current && current.text) items.push(current);
+  if (!items.length) items.push({ label: 'Suggestion', text: text.trim() });
+  return items;
+}
+
+function copyToClipboard(text, btnEl) {
+  // Try modern API first, fallback for HTTP contexts
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      showCopied(btnEl);
+    }).catch(function() {
+      fallbackCopy(text, btnEl);
+    });
+  } else {
+    fallbackCopy(text, btnEl);
+  }
+}
+
+function fallbackCopy(text, btnEl) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showCopied(btnEl);
+  } catch(e) {
+    toast('Copy failed — select text manually');
+  }
+  document.body.removeChild(ta);
+}
+
+function showCopied(btnEl) {
+  if (!btnEl) return;
+  btnEl.textContent = 'Copied!';
+  btnEl.classList.add('copied');
+  setTimeout(function() {
+    btnEl.textContent = 'Copy';
+    btnEl.classList.remove('copied');
+  }, 1500);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(function() { t.className = 'toast'; }, 2500);
+}
+</script>
+</body>
+</html>
