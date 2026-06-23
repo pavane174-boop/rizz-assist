@@ -1,7 +1,3 @@
-https://raw.githubusercontent.com/pavane174-boop/rizz-assist/main/index.html
-→ https://raw.githubusercontent.com/pavane174-boop/rizz-assist/main/index.html
-Content-Type: text/plain; charset=utf-8
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -929,8 +925,11 @@ async function callAI(msgs, maxTokens) {
 
   const bodyObj = { model: model, messages: apiMsgs };
   if (provider === 'openai') {
-    bodyObj.max_completion_tokens = maxTokens;
-    // No temperature — GPT-5.5 and o-series reject non-default values
+    // GPT-5.5, o1, o3 etc are reasoning models — they use tokens for thinking PLUS output
+    // Need ~4x budget so there's room for actual output after reasoning
+    const isReasoning = /^(o[0-9]|gpt-5)/.test(model);
+    bodyObj.max_completion_tokens = isReasoning ? Math.max(maxTokens * 5, 4000) : maxTokens;
+    // No temperature — reasoning models reject non-default values
   } else {
     bodyObj.max_tokens = maxTokens;
     bodyObj.temperature = 0.75;
@@ -956,10 +955,15 @@ async function callAI(msgs, maxTokens) {
 
   let data;
   try { data = await resp.json(); } catch(e) { throw new Error('Invalid response from API'); }
-  const content = data.choices?.[0]?.message?.content;
+  // Try multiple response formats
+  let content = data.choices?.[0]?.message?.content;
+  // Some models put it in different places
+  if (!content && data.choices?.[0]?.text) content = data.choices[0].text;
+  if (!content && data.output) content = typeof data.output === 'string' ? data.output : JSON.stringify(data.output);
   if (!content) {
-    console.error('[RizzAssist] Empty response, full data:', JSON.stringify(data).slice(0, 500));
-    throw new Error('Empty response from API');
+    const preview = JSON.stringify(data).slice(0, 300);
+    console.error('[RizzAssist] Empty response, raw:', preview);
+    throw new Error('Empty response. Raw: ' + preview);
   }
   return content;
 }
