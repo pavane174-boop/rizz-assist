@@ -172,7 +172,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
       <div class="field"><label>Provider</label><select id="provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="claude">Claude (Anthropic)</option><option value="bedrock">Claude (AWS Bedrock)</option><option value="custom">Custom URL</option></select></div>
       <div class="field"><label>Model</label><input type="text" id="modelName" placeholder="gpt-4o-mini"></div>
     </div>
-    <div class="field"><label>API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
+    <div class="field"><label id="apiKeyLabel">API Key</label><input type="password" id="apiKey" placeholder="sk-..."></div>
+    <div class="custom-url-row" id="secretKeyRow"><div class="field"><label>AWS Secret Key</label><input type="password" id="awsSecretKey" placeholder="your-aws-secret-access-key"></div></div>
     <div class="custom-url-row" id="customUrlRow"><div class="field"><label>Base URL</label><input type="text" id="customUrl" placeholder="https://api.example.com/v1"></div></div>
     <div class="custom-url-row" id="bedrockRow"><div class="field"><label>AWS Region</label><input type="text" id="bedrockRegion" placeholder="us-east-1" value="us-east-1"></div></div>
     <div style="display:flex;gap:8px;margin-top:4px;">
@@ -286,7 +287,7 @@ window.addEventListener('DOMContentLoaded', () => {
   renderChat();
   renderProfileCard();
   document.getElementById('provider').addEventListener('change', onProviderChange);
-  ['apiKey','modelName','customUrl','bedrockRegion'].forEach(id =>
+  ['apiKey','modelName','customUrl','bedrockRegion','awsSecretKey'].forEach(id =>
     document.getElementById(id).addEventListener('change', saveState)
   );
   document.getElementById('msgInput').addEventListener('keydown', e => {
@@ -326,7 +327,20 @@ function onProviderChange() {
   const p = document.getElementById('provider').value;
   document.getElementById('customUrlRow').className = 'custom-url-row' + (p === 'custom' ? ' show' : '');
   document.getElementById('bedrockRow').className = 'custom-url-row' + (p === 'bedrock' ? ' show' : '');
+  document.getElementById('secretKeyRow').className = 'custom-url-row' + (p === 'bedrock' ? ' show' : '');
   if (PROVIDERS[p]) document.getElementById('modelName').placeholder = PROVIDERS[p].model;
+  // Update labels for Bedrock
+  const label = document.getElementById('apiKeyLabel');
+  if (p === 'bedrock') {
+    label.textContent = 'AWS Access Key ID';
+    document.getElementById('apiKey').placeholder = 'AKIA...';
+  } else if (p === 'claude') {
+    label.textContent = 'Anthropic API Key';
+    document.getElementById('apiKey').placeholder = 'sk-ant-...';
+  } else {
+    label.textContent = 'API Key';
+    document.getElementById('apiKey').placeholder = 'sk-...';
+  }
   saveState();
 }
 
@@ -1044,49 +1058,87 @@ async function callClaude(apiKey, model, msgs, maxTokens) {
   return text;
 }
 
-async function callBedrock(apiKey, model, msgs, maxTokens) {
-  // For Bedrock, apiKey should be in format: ACCESS_KEY:SECRET_KEY
-  // Or user can use a custom proxy URL
+async function callBedrock(accessKeyId, model, msgs, maxTokens) {
+  const secretKey = document.getElementById('awsSecretKey').value.trim();
   const region = document.getElementById('bedrockRegion').value.trim() || 'us-east-1';
-  const proxyUrl = document.getElementById('customUrl').value.trim();
-
-  if (!proxyUrl) {
-    throw new Error('Bedrock requires a proxy URL. Set up a simple AWS proxy endpoint and enter it as Base URL. Direct browser-to-Bedrock calls need AWS SigV4 signing which requires a proxy. Format: your-proxy-url/invoke');
-  }
+  if (!secretKey) throw new Error('Enter your AWS Secret Key in settings');
+  if (!accessKeyId) throw new Error('Enter your AWS Access Key ID in settings');
 
   // Convert to Claude Messages format
-  let system = '';
+  let systemText = '';
   const claudeMsgs = [];
   msgs.forEach(m => {
-    if (m.role === 'system') { system += (system ? '\n\n' : '') + m.content; }
+    if (m.role === 'system') { systemText += (systemText ? '\n\n' : '') + m.content; }
     else { claudeMsgs.push({ role: m.role, content: m.content }); }
   });
   if (!claudeMsgs.length || claudeMsgs[0].role !== 'user') {
     claudeMsgs.unshift({ role: 'user', content: 'Analyze and respond.' });
   }
 
+  const body = JSON.stringify({
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: maxTokens,
+    system: systemText || undefined,
+    messages: claudeMsgs,
+    temperature: 0.75
+  });
+
+  const host = 'bedrock-runtime.' + region + '.amazonaws.com';
+  const path = '/model/' + encodeURIComponent(model) + '/invoke';
+  const url = 'https://' + host + path;
+
+  // AWS SigV4 signing
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const service = 'bedrock';
+  const scope = dateStamp + '/' + region + '/' + service + '/aws4_request';
+
+  // Hash payload
+  const payloadHash = await sha256Hex(body);
+
+  // Canonical request
+  const canonical = 'POST\n' + path + '\n\n' +
+    'content-type:application/json\n' +
+    'host:' + host + '\n' +
+    'x-amz-date:' + amzDate + '\n\n' +
+    'content-type;host;x-amz-date\n' + payloadHash;
+
+  const canonicalHash = await sha256Hex(canonical);
+
+  // String to sign
+  const stringToSign = 'AWS4-HMAC-SHA256\n' + amzDate + '\n' + scope + '\n' + canonicalHash;
+
+  // Signing key
+  const kDate = await hmacSha256(new TextEncoder().encode('AWS4' + secretKey), dateStamp);
+  const kRegion = await hmacSha256(kDate, region);
+  const kService = await hmacSha256(kRegion, service);
+  const kSigning = await hmacSha256(kService, 'aws4_request');
+
+  // Signature
+  const sigBytes = await hmacSha256(kSigning, stringToSign);
+  const signature = Array.from(new Uint8Array(sigBytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  const authHeader = 'AWS4-HMAC-SHA256 Credential=' + accessKeyId + '/' + scope +
+    ', SignedHeaders=content-type;host;x-amz-date, Signature=' + signature;
+
   let resp;
   try {
-    resp = await fetch(proxyUrl, {
+    resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
+        'Host': host,
+        'X-Amz-Date': amzDate,
+        'Authorization': authHeader
       },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: maxTokens,
-        system: system || undefined,
-        messages: claudeMsgs,
-        temperature: 0.75,
-        anthropic_version: 'bedrock-2023-05-31'
-      })
+      body: body
     });
-  } catch(e) { throw new Error('Network error — check proxy URL and connection'); }
+  } catch(e) { throw new Error('Network error — check your AWS region and credentials'); }
 
   if (!resp.ok) {
     let errMsg = 'Bedrock error ' + resp.status;
-    try { const err = await resp.json(); if (err.error?.message || err.message) errMsg = err.error?.message || err.message; } catch(e) {}
+    try { const err = await resp.json(); errMsg = err.message || err.Message || errMsg; } catch(e) {}
     throw new Error(errMsg);
   }
 
@@ -1094,6 +1146,19 @@ async function callBedrock(apiKey, model, msgs, maxTokens) {
   const text = data.content?.[0]?.text;
   if (!text) throw new Error('Empty response from Bedrock');
   return text;
+}
+
+// AWS SigV4 crypto helpers using Web Crypto API
+async function sha256Hex(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hmacSha256(keyData, message) {
+  const keyBuffer = (keyData instanceof ArrayBuffer) ? keyData : new TextEncoder().encode(keyData);
+  const key = await crypto.subtle.importKey('raw', keyBuffer, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
 }
 
 // ==================== RENDER AI RESPONSES ====================
@@ -1203,7 +1268,8 @@ function saveState() {
       apiKey: document.getElementById('apiKey').value,
       model: document.getElementById('modelName').value,
       customUrl: document.getElementById('customUrl').value,
-      bedrockRegion: document.getElementById('bedrockRegion').value
+      bedrockRegion: document.getElementById('bedrockRegion').value,
+      awsSecretKey: document.getElementById('awsSecretKey').value
     }));
   } catch(e) {
     console.warn('Failed to save state:', e);
@@ -1223,6 +1289,7 @@ function loadState() {
       if (s.model) document.getElementById('modelName').value = s.model;
       if (s.customUrl) document.getElementById('customUrl').value = s.customUrl;
       if (s.bedrockRegion) document.getElementById('bedrockRegion').value = s.bedrockRegion;
+      if (s.awsSecretKey) document.getElementById('awsSecretKey').value = s.awsSecretKey;
       // Load active profile into working state
       if (activeProfileId && profiles[activeProfileId]) {
         const p = profiles[activeProfileId];
